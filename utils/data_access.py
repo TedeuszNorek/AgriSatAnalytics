@@ -152,15 +152,18 @@ def check_planet_api_connection(api_key: Optional[str]) -> dict:
         return result
     
     try:
-        # Try to authenticate with Planet API
+        # Try to authenticate with Planet API using HTTP Basic Authentication
+        # as recommended in the Planet API docs
         import requests
+        from requests.auth import HTTPBasicAuth
         
-        url = "https://api.planet.com/data/v1/quick-search"
-        headers = {
-            "Authorization": f"api-key {api_key}"
-        }
+        # Use the Data API endpoint for authentication check
+        url = "https://api.planet.com/data/v1/item-types"
         
-        response = requests.get(url, headers=headers)
+        # Use HTTP Basic Authentication with the API key as the username and empty password
+        auth = HTTPBasicAuth(api_key, '')
+        
+        response = requests.get(url, auth=auth)
         
         if response.status_code == 200:
             result["valid"] = True
