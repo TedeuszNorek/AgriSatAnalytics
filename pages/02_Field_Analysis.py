@@ -1,6 +1,7 @@
 """
-Field Analysis - Analyze satellite data for fields
+Stara wersja Field Analysis - zastąpiona przez Field Manager
 """
+# UWAGA: Ta wersja jest przestarzała, używaj zamiast niej Field Manager
 import os
 import json
 import logging

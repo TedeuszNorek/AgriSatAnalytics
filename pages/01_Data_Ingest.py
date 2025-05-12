@@ -1,6 +1,7 @@
 """
-Data Ingest - Import and manage field data
+Stara wersja Data Ingest - zastąpiona przez Field Manager
 """
+# UWAGA: Ta wersja jest przestarzała, używaj zamiast niej Field Manager
 import os
 import json
 import logging
