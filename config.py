@@ -48,6 +48,9 @@ for directory in [SATELLITE_DATA_DIR, PROCESSED_DATA_DIR, REPORTS_DIR]:
 SENTINEL_HUB_CLIENT_ID = os.getenv("SENTINEL_HUB_CLIENT_ID")
 SENTINEL_HUB_CLIENT_SECRET = os.getenv("SENTINEL_HUB_CLIENT_SECRET")
 
+# Planet API configuration
+PLANET_API_KEY = os.getenv("PLANET_API_KEY")
+
 # Default study parameters
 DEFAULT_START_DATE = datetime.utcnow() - timedelta(days=365)  # 1 year ago
 DEFAULT_END_DATE = datetime.utcnow()

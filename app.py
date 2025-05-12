@@ -99,76 +99,152 @@ st.markdown(f"<h1 class='main-header'>{APP_NAME}</h1>", unsafe_allow_html=True)
 st.markdown(f"<p>{APP_DESCRIPTION}</p>", unsafe_allow_html=True)
 st.markdown(f"<p><small>Version {APP_VERSION}</small></p>", unsafe_allow_html=True)
 
-# Check Sentinel Hub credentials and display satellite connection status
-credentials_valid = False
-if SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET:
-    credentials_valid = check_sentinel_hub_credentials(
-        SENTINEL_HUB_CLIENT_ID, 
-        SENTINEL_HUB_CLIENT_SECRET
-    )
+# Check satellite data sources connections
+from utils.data_access import check_sentinel_hub_credentials, check_planet_api_connection
+from config import SENTINEL_HUB_CLIENT_ID, SENTINEL_HUB_CLIENT_SECRET, PLANET_API_KEY
+
+# Get connection statuses
+sentinel_status = check_sentinel_hub_credentials(SENTINEL_HUB_CLIENT_ID, SENTINEL_HUB_CLIENT_SECRET)
+planet_status = check_planet_api_connection(PLANET_API_KEY)
 
 # Create satellite connection status section
 st.markdown("<h2 class='sub-header'>Satellite Connection Status</h2>", unsafe_allow_html=True)
 
-# Create two columns for the status information
-col1, col2 = st.columns([2, 1])
+# Create a tabbed interface for the satellite connections
+sentinel_tab, planet_tab = st.tabs(["Sentinel Hub (ESA)", "Planet API"])
 
-with col1:
-    # Data source information
-    st.markdown("### Data Sources")
+# Sentinel Hub tab
+with sentinel_tab:
+    col1, col2 = st.columns([2, 1])
     
-    # Sentinel-2 information
-    st.markdown("""
-    **Sentinel-2 Optical Satellite:**
-    - Resolution: 10m - 20m per pixel
-    - Data Products: NDVI, EVI, Surface Reflectance, RGB imagery
-    - Frequency: Images refreshed every **5 days** (on average)
-    - Cloud Detection: Automatic cloud masking applied
-    """)
-    
-    # Sentinel-1 information
-    st.markdown("""
-    **Sentinel-1 Radar Satellite:**
-    - Resolution: 10m per pixel
-    - Data Products: Surface backscatter, soil moisture estimates
-    - Frequency: Images refreshed every **6 days** (on average)
-    - All-weather capability: Operates through clouds
-    """)
-
-with col2:
-    # Connection status
-    st.markdown("### Connection Status")
-    
-    if credentials_valid:
-        st.markdown(
-            "<div class='success-box'><h3>✅ CONNECTED</h3><p>Satellite data access is <strong>LIVE</strong></p></div>",
-            unsafe_allow_html=True
-        )
+    with col1:
+        # Sentinel data source information
+        st.markdown("### Sentinel Satellite Data")
         
-        # Add a recent update timestamp
-        st.markdown(f"**Last Status Check:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        
-        # Add data refresh information
-        next_refresh = (datetime.datetime.now() + datetime.timedelta(days=5)).strftime('%Y-%m-%d')
-        st.markdown(f"**Next Data Refresh:** ~{next_refresh}")
-        
-    else:
-        st.markdown(
-            "<div class='error-box'><h3>❌ DISCONNECTED</h3><p>Satellite data access is <strong>OFFLINE</strong></p></div>",
-            unsafe_allow_html=True
-        )
-        
-        st.markdown("""
-        **Connection Error:** Unable to authenticate with Sentinel Hub.
-        
-        To enable live satellite data:
-        1. Create an account at [Sentinel Hub](https://www.sentinel-hub.com/)
-        2. Generate OAuth credentials in your dashboard
-        3. Add credentials to environment variables
+        # Sentinel-2 information
+        st.markdown(f"""
+        **{sentinel_status['service_name']}**
+        - Provider: {sentinel_status['data_provider']}
+        - Resolution: {sentinel_status['resolution']}
+        - Data Products: {', '.join(sentinel_status['data_products'])}
+        - Frequency: Images refreshed every **{sentinel_status['refresh_rate']} days**
+        - Cloud Detection: Automatic cloud masking applied
         """)
         
-        # Add option to use test data
-        st.warning("⚠️ Using mock data for demonstration purpose.")
+        # Sentinel-1 information if included
+        st.markdown("""
+        **Sentinel-1 Radar Satellite:**
+        - Resolution: 10m per pixel
+        - Data Products: Surface backscatter, soil moisture estimates
+        - Frequency: Images refreshed every **6 days** (on average)
+        - All-weather capability: Operates through clouds
+        """)
+
+    with col2:
+        # Connection status
+        st.markdown("### Connection Status")
+        
+        if sentinel_status['valid']:
+            st.markdown(
+                "<div class='success-box'><h3>✅ CONNECTED</h3><p>Sentinel data access is <strong>LIVE</strong></p></div>",
+                unsafe_allow_html=True
+            )
+            
+            # Add a recent update timestamp
+            st.markdown(f"**Last Status Check:** {sentinel_status['last_check']}")
+            
+            # Add data refresh information
+            next_refresh = (datetime.datetime.now() + datetime.timedelta(days=sentinel_status['refresh_rate'])).strftime('%Y-%m-%d')
+            st.markdown(f"**Next Data Refresh:** ~{next_refresh}")
+            
+        else:
+            st.markdown(
+                "<div class='error-box'><h3>❌ DISCONNECTED</h3><p>Sentinel data access is <strong>OFFLINE</strong></p></div>",
+                unsafe_allow_html=True
+            )
+            
+            # Show error message
+            st.markdown(f"**Error:** {sentinel_status['message']}")
+            
+            st.markdown("""
+            To enable live satellite data:
+            1. Create an account at [Sentinel Hub](https://www.sentinel-hub.com/)
+            2. Generate OAuth credentials in your dashboard
+            3. Add credentials to environment variables
+            """)
+            
+            # Add option to use test data
+            st.warning("⚠️ Using mock data for demonstration purpose.")
+
+# Planet tab
+with planet_tab:
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Planet data source information
+        st.markdown("### Planet Satellite Data")
+        
+        st.markdown(f"""
+        **{planet_status['service_name']}**
+        - Provider: {planet_status['data_provider']}
+        - Resolution: {planet_status['resolution']}
+        - Data Products: {', '.join(planet_status['data_products'])}
+        - Frequency: Images refreshed **daily**
+        - Advanced Platform: Commercial high-resolution satellite imagery
+        """)
+        
+        # Add more information about Planet's capabilities
+        st.markdown("""
+        **Planet Platform Features:**
+        - Global daily imaging
+        - Archive access back to 2009
+        - On-demand tasking available
+        - API access for automated processing
+        """)
+
+    with col2:
+        # Connection status
+        st.markdown("### Connection Status")
+        
+        if planet_status['valid']:
+            st.markdown(
+                "<div class='success-box'><h3>✅ CONNECTED</h3><p>Planet data access is <strong>LIVE</strong></p></div>",
+                unsafe_allow_html=True
+            )
+            
+            # Add a recent update timestamp
+            st.markdown(f"**Last Status Check:** {planet_status['last_check']}")
+            
+            # Add data refresh information
+            next_refresh = (datetime.datetime.now() + datetime.timedelta(days=planet_status['refresh_rate'])).strftime('%Y-%m-%d')
+            st.markdown(f"**Next Data Refresh:** ~{next_refresh}")
+            
+        else:
+            st.markdown(
+                "<div class='error-box'><h3>❌ DISCONNECTED</h3><p>Planet data access is <strong>OFFLINE</strong></p></div>",
+                unsafe_allow_html=True
+            )
+            
+            # Show error message
+            st.markdown(f"**Error:** {planet_status['message']}")
+            
+            st.markdown("""
+            To enable Planet API access:
+            1. Create an account at [Planet](https://www.planet.com/)
+            2. Generate an API key in your account settings
+            3. Add the API key to environment variables
+            """)
+            
+            # Add link to Planet API documentation
+            st.markdown("[Learn more about Planet API](https://developers.planet.com/docs/apis/)")
+
+# Overall data source status
+st.markdown("---")
+if sentinel_status['valid'] or planet_status['valid']:
+    st.success("✅ At least one satellite data source is available. You can proceed with the application.")
+else:
+    st.error("❌ No satellite data sources are available. Please configure at least one data source to use the full functionality.")
+    st.warning("Demo mode is enabled with mock data for demonstration purposes.")
 
 # Display visual separator
 st.markdown("---")
