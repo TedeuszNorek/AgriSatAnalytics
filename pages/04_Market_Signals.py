@@ -823,14 +823,12 @@ if selected_field:
                                 conclusion = conclusion.replace("NDVI causes", "NDVI powoduje zmiany cen")
                             if "No causality" in conclusion:
                                 conclusion = "Brak przyczynowości"
-                        else:
-                            conclusion = "Brak danych o przyczynowości"
                             if "Price causes" in conclusion:
                                 conclusion = conclusion.replace("Price causes", "Ceny powodują zmiany")
                             if "Bidirectional" in conclusion:
                                 conclusion = "Dwukierunkowa zależność"
                         else:
-                            conclusion = "Brak wniosku"
+                            conclusion = "Brak danych o przyczynowości"
                         
                         # Najlepsze opóźnienie
                         if "ndvi_to_price_p_values" not in result:
