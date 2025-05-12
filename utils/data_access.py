@@ -47,8 +47,37 @@ def get_sentinel_hub_config() -> SHConfig:
     
     return config
 
-def check_sentinel_hub_credentials(client_id: Optional[str], client_secret: Optional[str]) -> bool:
-    """Check if Sentinel Hub credentials are valid using OAuth2 authentication."""
+def check_sentinel_hub_credentials(client_id: Optional[str], client_secret: Optional[str]) -> dict:
+    """
+    Check if Sentinel Hub credentials are valid using OAuth2 authentication.
+    
+    Args:
+        client_id: Sentinel Hub client ID
+        client_secret: Sentinel Hub client secret
+        
+    Returns:
+        Dictionary with status info including:
+        - valid: True if credentials are valid, False otherwise
+        - message: Error message if any
+        - token: OAuth token if valid
+        - refresh_rate: Data refresh rate in days
+    """
+    result = {
+        "valid": False,
+        "message": "",
+        "token": None,
+        "refresh_rate": 5,  # Sentinel-2 has a 5-day revisit cycle
+        "service_name": "Sentinel Hub (Copernicus)",
+        "data_provider": "European Space Agency (ESA)",
+        "data_products": ["NDVI", "EVI", "RGB Imagery", "Surface Reflectance"],
+        "resolution": "10m - 20m per pixel",
+        "last_check": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    if not client_id or not client_secret:
+        result["message"] = "Sentinel Hub credentials not provided"
+        return result
+    
     try:
         # Directly try to get an OAuth token from Sentinel Hub
         import requests
@@ -69,18 +98,93 @@ def check_sentinel_hub_credentials(client_id: Optional[str], client_secret: Opti
         # Check if the request was successful
         if response.status_code == 200:
             token_info = response.json()
+            result["valid"] = True
+            result["token"] = token_info.get("access_token")
+            result["expires_in"] = token_info.get("expires_in", 3600)
+            result["message"] = "Successfully authenticated with Sentinel Hub"
             logger.info(f"Successfully obtained OAuth token. Expires in {token_info.get('expires_in')} seconds")
-            return True
+            return result
         else:
+            error_info = response.text
+            try:
+                error_json = response.json()
+                error_info = f"{error_json.get('error', 'Unknown')}: {error_json.get('error_description', 'No description')}"
+            except:
+                pass
+            
+            result["message"] = f"Authentication failed: {error_info}"
             logger.error(f"Failed to obtain OAuth token. Status code: {response.status_code}")
             logger.error(f"Response: {response.text}")
-            return False
-            
+            return result
     except Exception as e:
+        result["message"] = f"Connection error: {str(e)}"
         logger.error(f"Failed to validate Sentinel Hub credentials: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        return False
+        return result
+
+def check_planet_api_connection(api_key: Optional[str]) -> dict:
+    """
+    Check if Planet API credentials are valid.
+    
+    Args:
+        api_key: Planet API key
+        
+    Returns:
+        Dictionary with status info including:
+        - valid: True if credentials are valid, False otherwise
+        - message: Error message if any
+        - refresh_rate: Data refresh rate in days
+    """
+    result = {
+        "valid": False,
+        "message": "",
+        "refresh_rate": 1,  # Planet has daily revisit capability
+        "service_name": "Planet API",
+        "data_provider": "Planet Labs",
+        "data_products": ["PSScene", "SkySat", "SuperDove", "High-resolution Imagery"],
+        "resolution": "0.5m - 3m per pixel",
+        "last_check": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    if not api_key:
+        result["message"] = "Planet API key not provided"
+        return result
+    
+    try:
+        # Try to authenticate with Planet API
+        import requests
+        
+        url = "https://api.planet.com/data/v1/quick-search"
+        headers = {
+            "Authorization": f"api-key {api_key}"
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            result["valid"] = True
+            result["message"] = "Successfully authenticated with Planet API"
+            logger.info("Successfully authenticated with Planet API")
+            return result
+        else:
+            error_info = response.text
+            try:
+                error_json = response.json()
+                error_info = error_json.get('message', error_info)
+            except:
+                pass
+            
+            result["message"] = f"Authentication failed: {error_info}"
+            logger.error(f"Failed to authenticate with Planet API. Status code: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return result
+    except Exception as e:
+        result["message"] = f"Connection error: {str(e)}"
+        logger.error(f"Error checking Planet API credentials: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return result
 
 async def fetch_with_rate_limit(function, *args, **kwargs):
     """Execute function with rate limiting."""
