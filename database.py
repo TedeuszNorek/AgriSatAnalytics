@@ -13,11 +13,33 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Create SQLAlchemy engine
-if DATABASE_URL:
-    engine = create_engine(DATABASE_URL)
-    logger.info("Database connection established")
+# Tymczasowo wymuszamy użycie SQLite ze względu na problemy z połączeniem PostgreSQL
+use_sqlite = True
+
+if DATABASE_URL and not use_sqlite:
+    try:
+        # Add connect_args to handle SSL issues
+        engine = create_engine(
+            DATABASE_URL, 
+            connect_args={
+                "sslmode": "require",
+                "connect_timeout": 30
+            }
+        )
+        # Test connection
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            conn.execute(text("SELECT 1"))
+        logger.info("Database connection to PostgreSQL established")
+    except Exception as e:
+        logger.error(f"Failed to connect to PostgreSQL: {str(e)}")
+        logger.warning("Falling back to SQLite database")
+        engine = create_engine("sqlite:///agro_insight.db")
 else:
-    logger.warning("No DATABASE_URL environment variable found. Using SQLite database")
+    if use_sqlite:
+        logger.warning("Using SQLite database (forced)")
+    else:
+        logger.warning("No DATABASE_URL environment variable found. Using SQLite database")
     engine = create_engine("sqlite:///agro_insight.db")
 
 # Create session factory

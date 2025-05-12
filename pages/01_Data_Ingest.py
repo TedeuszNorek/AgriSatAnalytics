@@ -240,6 +240,9 @@ elif data_option == "Draw on Map" and manage_option == "Add New Field":
     if 'drawn_polygon' not in st.session_state:
         st.session_state.drawn_polygon = None
     
+    if 'drawn_features' not in st.session_state:
+        st.session_state.drawn_features = None
+    
     # Dostępne akcje rysowania
     draw_actions = ["polygon", "rectangle", "circle", "marker", "clear"]
     selected_action = st.selectbox("Wybierz narzędzie rysowania", options=draw_actions)
@@ -296,30 +299,12 @@ elif data_option == "Draw on Map" and manage_option == "Add New Field":
         geod = pyproj.Geod(ellps="WGS84")
         area_m2 = abs(geod.geometry_area_perimeter(polygon)[0])
         area_hectares = area_m2 / 10000  # Konwersja na hektary
-            offset_lon = random.uniform(-0.005, 0.005)
+        # Tworzymy GeoJSON na podstawie narysowanego poligonu
+        geojson_data = st.session_state.drawn_polygon
             
-            # Tworzymy prostą geomerrię wokół wybranego punktu
-            coordinates = [
-                [center_lon + offset_lon - 0.003, center_lat + offset_lat - 0.002],
-                [center_lon + offset_lon + 0.003, center_lat + offset_lat - 0.002],
-                [center_lon + offset_lon + 0.003, center_lat + offset_lat + 0.002],
-                [center_lon + offset_lon - 0.003, center_lat + offset_lat + 0.002],
-                [center_lon + offset_lon - 0.003, center_lat + offset_lat - 0.002]  # Zamykamy wielokąt
-            ]
-            
-            # Tworzymy GeoJSON
-            geojson_data = {
-                "type": "Feature",
-                "properties": {},
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [coordinates]
-                }
-            }
-            
-            # Zapisz do stanu sesji
-            st.session_state.drawn_features = geojson_data
-            st.success("Field boundary drawn successfully! Fill in the details below to save.")
+        # Zapisz do stanu sesji
+        st.session_state.drawn_features = geojson_data
+        st.success("Field boundary drawn successfully! Fill in the details below to save.")
     
     # Wyświetl formularz tylko wtedy, gdy użytkownik narysował kształt
     if st.session_state.drawn_features:
