@@ -47,66 +47,39 @@ def get_sentinel_hub_config() -> SHConfig:
     
     return config
 
-def check_sentinel_hub_credentials(client_id: str, client_secret: str) -> bool:
-    """Check if Sentinel Hub credentials are valid."""
+def check_sentinel_hub_credentials(client_id: Optional[str], client_secret: Optional[str]) -> bool:
+    """Check if Sentinel Hub credentials are valid using OAuth2 authentication."""
     try:
-        # Create a configuration with the provided credentials
-        config = SHConfig()
-        config.sh_client_id = client_id
-        config.sh_client_secret = client_secret
+        # Directly try to get an OAuth token from Sentinel Hub
+        import requests
         
-        # Instead of trying to get a token directly, we'll make a simple request
-        # to test the credentials
+        # OAuth2 endpoint for Sentinel Hub
+        auth_url = "https://services.sentinel-hub.com/oauth/token"
         
-        # Try a different approach that works with the available version
-        # Create a simple request using the SentinelHubRequest to verify credentials
-        from sentinelhub import SentinelHubRequest, DataCollection, MimeType, bbox_to_dimensions
-        
-        # Simple evalscript to test authentication
-        evalscript = """
-        //VERSION=3
-        function setup() {
-            return {
-                input: ["B02"],
-                output: { bands: 1 }
-            };
+        # Data for OAuth2 Client Credentials flow
+        auth_data = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret
         }
-        function evaluatePixel(sample) {
-            return [sample.B02];
-        }
-        """
         
-        # Use a minimal bbox for the test
-        test_bbox = BBox(bbox=[15, 45, 15.1, 45.1], crs=CRS.WGS84)
-        test_dims = bbox_to_dimensions(test_bbox, 10)
+        # Make request to obtain token
+        response = requests.post(auth_url, data=auth_data)
         
-        # Create a simple request
-        _ = SentinelHubRequest(
-            evalscript=evalscript,
-            input_data=[
-                {
-                    "dataFilter": {
-                        "timeRange": {
-                            "from": "2020-01-01T00:00:00Z",
-                            "to": "2020-01-02T00:00:00Z"
-                        }
-                    },
-                    "type": "S2L1C"
-                }
-            ],
-            responses=[
-                {"identifier": "default", "format": MimeType.PNG}
-            ],
-            bbox=test_bbox,
-            size=test_dims,
-            config=config
-        )
-        
-        # If we get here without error, credentials are valid
-        logger.info("Sentinel Hub credentials validated successfully")
-        return True
+        # Check if the request was successful
+        if response.status_code == 200:
+            token_info = response.json()
+            logger.info(f"Successfully obtained OAuth token. Expires in {token_info.get('expires_in')} seconds")
+            return True
+        else:
+            logger.error(f"Failed to obtain OAuth token. Status code: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+            
     except Exception as e:
         logger.error(f"Failed to validate Sentinel Hub credentials: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 async def fetch_with_rate_limit(function, *args, **kwargs):

@@ -227,8 +227,23 @@ with st.sidebar:
             with st.spinner("Testing Sentinel Hub connection..."):
                 try:
                     import traceback
+                    
+                    # Check if credentials exist
+                    if not SENTINEL_HUB_CLIENT_ID or not SENTINEL_HUB_CLIENT_SECRET:
+                        st.error("❌ Sentinel Hub credentials are not set properly.")
+                        st.markdown("""
+                        ### Missing Credentials
+                        You need to set both SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET 
+                        environment variables.
+                        
+                        1. Create an account at [Sentinel Hub](https://www.sentinel-hub.com/)
+                        2. Create OAuth credentials in your dashboard
+                        3. Add these credentials to the application's environment variables
+                        """)
+                        st.stop()
+                    
                     # Log the credentials (without revealing them)
-                    st.info(f"Using Sentinel Hub credentials with client ID starting with '{SENTINEL_HUB_CLIENT_ID[:4] if SENTINEL_HUB_CLIENT_ID else 'None'}...'")
+                    st.info(f"Using Sentinel Hub credentials with client ID starting with '{SENTINEL_HUB_CLIENT_ID[:4]}...'")
                     
                     # Test the connection
                     is_valid = check_sentinel_hub_credentials(
@@ -240,8 +255,69 @@ with st.sidebar:
                         st.success("✅ Sentinel Hub connection successful! Credentials are valid.")
                     else:
                         st.error("❌ Could not authenticate with Sentinel Hub. Please check your credentials.")
+                        st.markdown("""
+                        ### Troubleshooting Steps:
+                        1. Ensure you've created an account at [Sentinel Hub](https://www.sentinel-hub.com/)
+                        2. Verify your OAuth credentials in your dashboard
+                        3. Update the credentials in the environment variables
+                        
+                        Current error: 401 Unauthorized - This means your credentials are incorrect or expired.
+                        """)
                 except Exception as e:
                     st.error(f"Error during Sentinel Hub connection test: {str(e)}")
+                    st.code(traceback.format_exc(), language="python")
+        
+        # Help with Sentinel Hub credentials
+        if st.button("How to get Sentinel Hub Credentials", use_container_width=True):
+            st.markdown("""
+            ## Jak uzyskać poprawne dane uwierzytelniające dla Sentinel Hub
+            
+            Sentinel Hub używa **uwierzytelniania OAuth2**, które jest inne niż zwykły klucz API. Musisz wykonać następujące kroki:
+            
+            1. Utwórz konto na [Sentinel Hub](https://www.sentinel-hub.com/), jeśli jeszcze go nie masz
+            2. Zaloguj się i przejdź do panelu konta
+            3. Przejdź do sekcji "OAuth clients" w ustawieniach
+            4. Utwórz nowego klienta OAuth, klikając "Create New OAuth Client"
+            5. Nadaj nazwę (np. "AgroInsight") i zapisz
+            6. Otrzymasz dwie wartości:
+               - **Client ID** - to NIE jest Twój adres email
+               - **Client Secret** - to NIE jest Twój kod API
+            7. Używasz tych wartości jako zmiennych środowiskowych:
+               - `SENTINEL_HUB_CLIENT_ID` - Wartość Client ID
+               - `SENTINEL_HUB_CLIENT_SECRET` - Wartość Client Secret
+            
+            Zwróć uwagę, że te dane są inne niż zwykłe dane dostępowe do konta!
+            """)
+        
+        # Add test button that doesn't require actual API access
+        if st.button("Test UI Functions (No API)", use_container_width=True):
+            with st.spinner("Testing UI functions without API calls..."):
+                try:
+                    # Create a simple test map
+                    import folium
+                    from streamlit_folium import folium_static
+                    
+                    st.markdown("### Test Map Display")
+                    m = folium.Map(location=[50.0, 19.0], zoom_start=6)
+                    folium.Marker([50.0, 19.0], popup="Test Marker").add_to(m)
+                    folium_static(m, width=600, height=400)
+                    
+                    # Create a sample chart
+                    import matplotlib.pyplot as plt
+                    import numpy as np
+                    
+                    st.markdown("### Test Chart Display")
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    x = np.linspace(0, 10, 100)
+                    y = np.sin(x)
+                    ax.plot(x, y)
+                    ax.set_title("Test Sine Wave")
+                    ax.grid(True)
+                    st.pyplot(fig)
+                    
+                    st.success("✅ UI functions testing successful. The application can display maps and charts correctly.")
+                except Exception as e:
+                    st.error(f"Error during UI functions test: {str(e)}")
                     st.code(traceback.format_exc(), language="python")
         
         # Database connection test

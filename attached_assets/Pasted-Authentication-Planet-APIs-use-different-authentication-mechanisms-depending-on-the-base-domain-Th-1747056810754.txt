@@ -1,0 +1,60 @@
+Authentication
+Planet APIs use different authentication mechanisms depending on the base domain. The two primary domains are api.planet.com and sentinel-hub.com. See the following sections for details on how to authenticate with each domain.
+
+api.planet.com Authentication
+API endpoints under the api.planet.com domain use API keys for programmatic access. API keys grant access to the platform equivalent to the key owner and should be protected as being as sensitive as the user password.
+
+After youn sign up, your API key can be found on your Account page under the "My Settings" tab. You may only have one active API key at a time.
+
+In addition to obtaining your API key from the user settings page, it can be retrieved using the planet CLI that is part of the Planet Python SDK.
+
+APIs under the api.planet.com domain accept API keys using several mechanisms:
+
+HTTP Basic Authentication - Basic HTTP Authentication (described in RFC 7617), API keys are presented to the APIs by setting the username to the API key. The password should be left empty.
+Authorization HTTP Header - The Authorization header, API keys are presented to the APIs with the api-key scheme.
+URL query parameter - URL query parameters, API keys are presented to the APIs using the api_key parameter.
+Most APIs accept HTTP Basic and this method is preferred. Many accept multiple methods, but some may only accept the Authorization header or URL query parameter. The URL query parameter has been implemented by some APIs to support limitations present in many tile streaming clients where modifying HTTP headers may be difficult. Refer to specific API documentation for details on what methods are supported.
+
+Obtaining your Planet API key
+CLI
+Python SDK
+Initialize the CLI using your username and password to obtain and save and view your API key
+planet auth init
+planet auth value
+
+warning
+While Python code is inherently open, the mechanisms used by the planet auth init CLI and the SDK to obtain a user API key are not documented as part of the Planet stable APIs and are targeted for deprecation in the near future.
+
+Using your Planet API Key with HTTP Basic
+CURL
+CURL + CLI
+CLI
+Python SDK
+Use API Key obtained from the your settings page with CURL
+curl -u "${PL_API_KEY}:" https://api.planet.com/data/v1/searches
+
+Using your Planet API Key with Authorization Header
+CURL
+CURL + CLI
+Use API Key obtained from your settings page with CURL
+curl -H "Authorization: api-key ${PL_API_KEY}" https://api.planet.com/data/v1/searches
+
+note
+The SDK internals do not use this method, so it is not available to make calls to Planet APIs using the SDK or the CLI.
+
+Using your Planet API Key with URL Parameter
+CURL
+CURL + CLI
+Use API Key obtained from the user's settings page with CURL
+curl "https://api.planet.com/basemaps/v1/mosaics?api_key=${PL_API_KEY}"
+
+note
+The SDK internals do not use this method, so it is not available for making calls to Planet APIs using the SDK or the CLI.
+
+sentinel-hub.com Authentication
+API endpoints under the sentinel-hub.com domain use OAuth2 access tokens for programmatic access. Access tokens are obtained using the Client Credentials flow using client IDs and client secrets that are managed from the OAuth Clients panel in the Account app.
+
+See Sentinel Hub Authentication for further information.
+
+See RFC 6749 for more information on the OAuth2 Framework.
+
