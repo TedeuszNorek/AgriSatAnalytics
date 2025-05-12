@@ -1239,7 +1239,7 @@ if st.session_state.selected_fields:
         st.subheader("Zaawansowane analizy i automatyczne raporty")
         
         # Zakładki dla prostszej nawigacji
-        ml_tabs = st.tabs(["Model predykcyjny", "Automatyczne raporty"])
+        ml_tabs = st.tabs(["Model predykcyjny", "Ukryte zależności", "Automatyczne raporty"])
         
         with ml_tabs[0]:
             # Uproszczona sekcja z modelem ML
@@ -1302,6 +1302,188 @@ if st.session_state.selected_fields:
                 st.plotly_chart(fig, use_container_width=True)
         
         with ml_tabs[1]:
+            # Sekcja do odkrywania ukrytych zależności i korelacji
+            st.markdown("### 🔍 Ukryte zależności i korelacje")
+            
+            # Info box z wyjaśnieniem
+            st.info("Ta funkcja analizuje dane NDVI, pogodowe, cenowe i plonów, aby odkryć nieoczywiste zależności między różnymi czynnikami wpływającymi na rolnictwo i rynki towarowe.")
+            
+            # Wybór typu analizy
+            correlation_type = st.radio(
+                "Wybierz typ analizy korelacji",
+                options=["NDVI vs Ceny towarów", "NDVI vs Pogoda", "Pogoda vs Ceny towarów", "Wszystkie zmienne"],
+                horizontal=True
+            )
+            
+            # Wybór metody analizy
+            correlation_method = st.selectbox(
+                "Metoda analizy",
+                options=["Korelacja Pearsona", "Korelacja Spearmana", "Analiza przyczynowości Grangera", "Analiza skupień"]
+            )
+            
+            # Wybór okresu do analizy
+            col1, col2 = st.columns(2)
+            with col1:
+                look_back = st.slider("Okres analizy (w dniach)", 
+                                       min_value=30, max_value=365, value=90, step=30)
+            
+            with col2:
+                lag_days = st.slider("Opóźnienie (w dniach)", 
+                                     min_value=0, max_value=60, value=14, step=7,
+                                     help="Przesunięcie czasowe do wykrywania efektów opóźnionych")
+            
+            # Przycisk do uruchomienia analizy
+            if st.button("Odkryj ukryte zależności", type="primary", use_container_width=True):
+                with st.spinner("Analizowanie danych i wykrywanie ukrytych zależności..."):
+                    # Zbieranie danych do analizy
+                    all_data = {}
+                    correlations = {}
+                    
+                    # 1. Zbieranie danych NDVI
+                    for field_name in st.session_state.selected_fields:
+                        ndvi_data = load_ndvi_data(field_name)
+                        if ndvi_data:
+                            # Konwersja danych NDVI na DataFrame
+                            ndvi_df = pd.DataFrame(list(ndvi_data.items()), columns=['date', 'ndvi'])
+                            ndvi_df['date'] = pd.to_datetime(ndvi_df['date'])
+                            ndvi_df.set_index('date', inplace=True)
+                            all_data[f"NDVI_{field_name}"] = ndvi_df['ndvi']
+                    
+                    # 2. Pobieranie danych cenowych
+                    try:
+                        # Symbole dla różnych towarów
+                        commodity_symbols = {
+                            "Wheat": "ZW=F",
+                            "Corn": "ZC=F",
+                            "Soybean": "ZS=F",
+                            "Oats": "ZO=F",
+                            "Rice": "ZR=F"
+                        }
+                        
+                        symbols_to_fetch = list(commodity_symbols.values())
+                        
+                        # Import biblioteki yfinance, jeśli potrzebna
+                        import yfinance as yf
+                        
+                        # Pobranie danych cenowych
+                        end_date = datetime.datetime.now().strftime('%Y-%m-%d')
+                        start_date = (datetime.datetime.now() - datetime.timedelta(days=look_back)).strftime('%Y-%m-%d')
+                        
+                        price_data = yf.download(symbols_to_fetch, start=start_date, end=end_date)['Close']
+                        
+                        # Dodanie danych cenowych do analizy
+                        for symbol in symbols_to_fetch:
+                            if symbol in price_data.columns:
+                                all_data[f"Price_{symbol}"] = price_data[symbol]
+                    except Exception as e:
+                        st.warning(f"Nie udało się pobrać danych cenowych: {str(e)}")
+                    
+                    # 3. Łączenie wszystkich danych w jeden DataFrame
+                    if all_data:
+                        combined_data = pd.DataFrame(all_data)
+                        combined_data = combined_data.fillna(method='ffill').fillna(method='bfill')
+                        
+                        # 4. Obliczenie macierzy korelacji
+                        if correlation_method == "Korelacja Pearsona":
+                            correlation_matrix = combined_data.corr(method='pearson')
+                        elif correlation_method == "Korelacja Spearmana":
+                            correlation_matrix = combined_data.corr(method='spearman')
+                        else:
+                            correlation_matrix = combined_data.corr(method='pearson')
+                        
+                        # 5. Znalezienie najsilniejszych korelacji
+                        strong_correlations = []
+                        
+                        for i in range(len(correlation_matrix.columns)):
+                            for j in range(i+1, len(correlation_matrix.columns)):
+                                if abs(correlation_matrix.iloc[i, j]) > 0.5:  # Próg korelacji
+                                    strong_correlations.append({
+                                        'Variable1': correlation_matrix.columns[i],
+                                        'Variable2': correlation_matrix.columns[j],
+                                        'Correlation': correlation_matrix.iloc[i, j],
+                                        'Abs_Correlation': abs(correlation_matrix.iloc[i, j])
+                                    })
+                        
+                        # Sortowanie korelacji malejąco
+                        strong_correlations = sorted(strong_correlations, key=lambda x: x['Abs_Correlation'], reverse=True)
+                        
+                        # 6. Wyświetlenie wyników
+                        if strong_correlations:
+                            st.success(f"Znaleziono {len(strong_correlations)} istotnych korelacji!")
+                            
+                            # Heatmapa korelacji
+                            st.markdown("#### Mapa ciepła korelacji")
+                            fig = px.imshow(
+                                correlation_matrix, 
+                                text_auto=True, 
+                                color_continuous_scale='RdBu_r',
+                                title="Macierz korelacji wszystkich analizowanych zmiennych"
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Tabela najsilniejszych korelacji
+                            st.markdown("#### Najsilniejsze korelacje")
+                            correlation_df = pd.DataFrame(strong_correlations[:10])  # Top 10
+                            correlation_df['Correlation'] = correlation_df['Correlation'].round(3)
+                            correlation_df.drop(columns=['Abs_Correlation'], inplace=True)
+                            
+                            st.dataframe(correlation_df)
+                            
+                            # Wykres najsilniejszych korelacji
+                            st.markdown("#### Wizualizacja najsilniejszych korelacji")
+                            
+                            # Wybór pary zmiennych do wizualizacji
+                            if len(strong_correlations) > 0:
+                                top_pair = strong_correlations[0]
+                                var1 = top_pair['Variable1']
+                                var2 = top_pair['Variable2']
+                                corr_value = top_pair['Correlation']
+                                
+                                scatter_fig = px.scatter(
+                                    combined_data.reset_index(), 
+                                    x=var1, 
+                                    y=var2,
+                                    trendline="ols",
+                                    title=f"Korelacja: {var1} vs {var2} (r = {corr_value:.3f})"
+                                )
+                                st.plotly_chart(scatter_fig, use_container_width=True)
+                                
+                                # Wyjaśnienie korelacji
+                                st.markdown("#### Interpretacja wyników")
+                                
+                                if corr_value > 0.8:
+                                    strength = "bardzo silna dodatnia"
+                                elif corr_value > 0.6:
+                                    strength = "silna dodatnia"
+                                elif corr_value > 0.3:
+                                    strength = "umiarkowana dodatnia"
+                                elif corr_value > 0:
+                                    strength = "słaba dodatnia"
+                                elif corr_value > -0.3:
+                                    strength = "słaba ujemna"
+                                elif corr_value > -0.6:
+                                    strength = "umiarkowana ujemna"
+                                elif corr_value > -0.8:
+                                    strength = "silna ujemna"
+                                else:
+                                    strength = "bardzo silna ujemna"
+                                
+                                st.markdown(f"""
+                                Pomiędzy zmiennymi **{var1}** i **{var2}** wykryto **{strength}** korelację (r = {corr_value:.3f}).
+                                
+                                To oznacza, że {'wzrost' if corr_value > 0 else 'spadek'} wartości jednej zmiennej jest powiązany z {'wzrostem' if corr_value > 0 else 'spadkiem'} drugiej zmiennej.
+                                
+                                **Możliwe implikacje dla rolnictwa i rynków towarowych:**
+                                - Ta zależność może być wykorzystana do lepszego przewidywania zmian na rynkach
+                                - Warto monitorować zmienną {var1} jako potencjalny wskaźnik wyprzedzający dla {var2}
+                                - Połączenie tych danych może prowadzić do bardziej trafnych prognoz ekonomicznych
+                                """)
+                        else:
+                            st.warning("Nie znaleziono istotnych korelacji z wykorzystaniem wybranych parametrów.")
+                    else:
+                        st.error("Nie udało się zebrać wystarczającej ilości danych do analizy.")
+        
+        with ml_tabs[2]:
             st.markdown("### 📊 Automatyczne raporty rynkowe")
             
             # Uproszczona sekcja raportów automatycznych
