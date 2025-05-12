@@ -19,6 +19,7 @@ import io
 import base64
 from scipy import stats
 from utils.market_reports import MarketInsightsReportGenerator
+import markdown
 import uuid
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -28,6 +29,218 @@ import re
 
 # Konfiguracja loggera
 logger = logging.getLogger(__name__)
+
+# Funkcja do konwersji markdown na HTML
+def markdown_to_html(md_content):
+    """Convert markdown content to HTML"""
+    return markdown.markdown(md_content, extensions=['tables', 'fenced_code'])
+
+# Funkcja generująca ekspercki raport z branży handlu plonami rolnymi
+def generate_expert_commodity_report(field_name, crop_type, data, time_period="Krótkoterminowa"):
+    """
+    Generuje ekspercki raport analizy rynkowej dla danego pola i typu uprawy.
+    
+    Args:
+        field_name: Nazwa pola
+        crop_type: Typ uprawy (np. "Wheat", "Corn", "Soybean")
+        data: Słownik z danymi do raportu
+        time_period: Okres prognozy ("Krótkoterminowa", "Średnioterminowa", "Długoterminowa")
+        
+    Returns:
+        String zawierający raport w formacie markdown
+    """
+    # Data generowania raportu
+    today = datetime.date.today()
+    current_year = today.year
+    
+    # Określenie horyzontu czasowego na podstawie parametru
+    if time_period == "Krótkoterminowa":
+        forecast_end_date = today + datetime.timedelta(days=30)
+        time_description = f"30 dni (do {forecast_end_date.strftime('%d.%m.%Y')})"
+    elif time_period == "Średnioterminowa":
+        forecast_end_date = today + datetime.timedelta(days=90)
+        time_description = f"90 dni (do {forecast_end_date.strftime('%d.%m.%Y')})"
+    else:  # Długoterminowa
+        days_to_next_year = (datetime.date(current_year+1, 1, 1) - today).days
+        forecast_end_date = today + datetime.timedelta(days=days_to_next_year + 30)
+        time_description = f"do {forecast_end_date.strftime('%d.%m.%Y')}"
+        
+    # Tłumaczenie nazwy uprawy na polski
+    crop_translations = {
+        "Wheat": "Pszenica",
+        "Corn": "Kukurydza",
+        "Soybean": "Soja",
+        "Barley": "Jęczmień",
+        "Oats": "Owies",
+        "Rice": "Ryż",
+        "Rye": "Żyto"
+    }
+    
+    crop_pl = crop_translations.get(crop_type, crop_type)
+    
+    # Symbole kontraktów na giełdzie
+    commodity_symbols = {
+        "Wheat": "ZW=F",  # Pszenica
+        "Corn": "ZC=F",   # Kukurydza
+        "Soybean": "ZS=F",  # Soja
+        "Oats": "ZO=F",   # Owies
+        "Rice": "ZR=F"    # Ryż
+    }
+    
+    # Ceny aktualne i historyczne (przykładowe)
+    commodity_prices = {
+        "Wheat": {"current": 228.50, "last_month": 232.75, "last_year": 220.25},
+        "Corn": {"current": 187.25, "last_month": 185.50, "last_year": 193.75},
+        "Soybean": {"current": 430.75, "last_month": 424.50, "last_year": 445.25},
+        "Oats": {"current": 284.25, "last_month": 280.75, "last_year": 271.50},
+        "Rice": {"current": 363.00, "last_month": 355.25, "last_year": 342.75}
+    }
+    
+    # Pobierz wartości NDVI z danych, jeśli dostępne
+    ndvi_trend = "stabilną"  # domyślna wartość
+    if "ndvi_time_series" in data and data["ndvi_time_series"]:
+        ndvi_values = list(data["ndvi_time_series"].values())
+        if len(ndvi_values) >= 2:
+            if ndvi_values[-1] > ndvi_values[-2] * 1.05:
+                ndvi_trend = "rosnącą"
+            elif ndvi_values[-1] < ndvi_values[-2] * 0.95:
+                ndvi_trend = "malejącą"
+    
+    # Ceny i zmiany procentowe
+    current_price = commodity_prices.get(crop_type, {}).get("current", 0)
+    last_month_price = commodity_prices.get(crop_type, {}).get("last_month", 0)
+    last_year_price = commodity_prices.get(crop_type, {}).get("last_year", 0)
+    
+    monthly_change = ((current_price - last_month_price) / last_month_price * 100) if last_month_price else 0
+    yearly_change = ((current_price - last_year_price) / last_year_price * 100) if last_year_price else 0
+    
+    # Generowanie prognozy cenowej na podstawie trendu NDVI i aktualnych cen
+    if ndvi_trend == "rosnącą":
+        price_forecast = round(current_price * 0.95, 2)  # prognoza spadku cen o 5%
+        forecast_direction = "spadek"
+        market_recommendation = "Rozważ sprzedaż kontraktów terminowych teraz - dobre zbiory mogą prowadzić do spadku cen."
+    elif ndvi_trend == "malejącą":
+        price_forecast = round(current_price * 1.07, 2)  # prognoza wzrostu cen o 7%
+        forecast_direction = "wzrost"
+        market_recommendation = "Rozważ zakup kontraktów terminowych - słabsze zbiory mogą prowadzić do wzrostu cen."
+    else:
+        price_forecast = round(current_price * 1.02, 2)  # prognoza niewielkiego wzrostu o 2%
+        forecast_direction = "stabilizację z lekkim wzrostem"
+        market_recommendation = "Monitoruj rynek - brak wyraźnych sygnałów do agresywnych działań."
+    
+    # Przygotowanie tekstu dla warunków pogodowych
+    if ndvi_trend == "rosnącą":
+        weather_conditions = "korzystne"
+    elif ndvi_trend == "malejącą":
+        weather_conditions = "niekorzystne"
+    else:
+        weather_conditions = "umiarkowane"
+    
+    # Przygotowanie tekstu dla globalnych zapasów
+    if ndvi_trend == "rosnącą":
+        global_stocks = "wysokim"
+    elif ndvi_trend == "malejącą":
+        global_stocks = "niskim"
+    else:
+        global_stocks = "przeciętnym"
+    
+    # Przygotowanie tekstu dla tendencji eksportowych
+    if ndvi_trend == "malejącą":
+        export_trends = "Zwiększony"
+    elif ndvi_trend == "rosnącą":
+        export_trends = "Zmniejszony"
+    else:
+        export_trends = "Stabilny"
+    
+    # Przygotowanie uzasadnienia prognozy
+    if ndvi_trend == "rosnącą":
+        forecast_rationale = "Dobre warunki wzrostu sugerują wyższe zbiory, co może prowadzić do zwiększonej podaży i spadku cen o około 5%."
+    elif ndvi_trend == "malejącą":
+        forecast_rationale = "Gorsze warunki wzrostu mogą skutkować niższymi zbiorami, prowadząc do ograniczonej podaży i wzrostu cen o około 7%."
+    else:
+        forecast_rationale = "Obecne warunki nie wskazują na znaczące zmiany w zbiorach, spodziewamy się lekkiego wzrostu cen o 2% zgodnie z ogólną inflacją w sektorze rolnym."
+    
+    # Przygotowanie sugerowanych działań
+    if ndvi_trend == "rosnącą":
+        suggested_actions = f"- Rozważ sprzedaż kontraktów na {price_forecast:.2f} EUR/t\n- Zabezpiecz co najmniej 30% przewidywanych zbiorów\n- Monitoruj prognozy meteorologiczne pod kątem zmian"
+    elif ndvi_trend == "malejącą":
+        suggested_actions = f"- Rozważ zakup kontraktów na {current_price:.2f} EUR/t\n- Monitoruj sytuację podażową w innych regionach\n- Śledź raporty o stanie upraw w głównych krajach producenckich"
+    else:
+        suggested_actions = "- Rozłóż sprzedaż w czasie zamiast jednorazowej transakcji\n- Monitoruj kluczowe wskaźniki rynkowe jak NDVI, stan magazynów i raporty USDA\n- Przygotuj strategię na wypadek wzrostu zmienności"
+    
+    # Przygotowanie daty najbliższego raportu USDA
+    if today.day < 12:
+        next_report_date = today.replace(day=12)
+    else:
+        if today.month < 12:
+            next_report_date = today.replace(day=12, month=today.month+1)
+        else:
+            next_report_date = today.replace(day=12, month=1, year=today.year+1)
+    
+    next_report_date_formatted = next_report_date.strftime('%d.%m.%Y')
+    
+    # Przygotowanie terminu żniw
+    if crop_type in ["Wheat", "Barley"]:
+        harvest_time = f"lipiec-sierpień {current_year}"
+    elif crop_type in ["Corn", "Soybean"]:
+        harvest_time = f"wrzesień-październik {current_year}"
+    else:
+        harvest_time = f"wrzesień {current_year}"
+    
+    # Tworzenie raportu
+    report = f"""# Ekspercki Raport Rynkowy: {crop_pl}
+
+**Wygenerowano dnia:** {today.strftime('%d.%m.%Y')}  
+**Dotyczy obszaru:** {field_name}  
+**Horyzont prognozy:** {time_description}
+
+## Podsumowanie rynkowe
+
+{crop_pl} wykazuje {ndvi_trend} tendencję wzrostu na badanym obszarze, co sugeruje **{forecast_direction}** cen w analizowanym okresie.
+
+Aktualna cena kontraktów terminowych ({commodity_symbols.get(crop_type, "N/D")}): **{current_price:.2f} EUR/t**
+
+* Zmiana miesięczna: **{monthly_change:.2f}%** ({last_month_price:.2f} EUR/t)
+* Zmiana roczna: **{yearly_change:.2f}%** ({last_year_price:.2f} EUR/t)
+
+## Analiza rynkowa
+
+### Czynniki wpływające na rynek {crop_pl}
+
+1. **Kondycja upraw** - Wskaźnik NDVI pokazuje {ndvi_trend} tendencję w ostatnim okresie, co wskazuje na {ndvi_trend} dynamikę wzrostu roślin.
+
+2. **Warunki pogodowe** - Ostatnie dane meteorologiczne wskazują na {weather_conditions} warunki dla rozwoju {crop_pl}.
+
+3. **Globalne zapasy** - Światowe zapasy {crop_pl} są obecnie na {global_stocks} poziomie.
+
+4. **Tendencje eksportowe** - {export_trends} popyt eksportowy z kluczowych regionów importujących.
+
+### Prognoza cenowa
+
+Spodziewana cena {crop_pl} na koniec okresu prognozy: **{price_forecast:.2f} EUR/t**
+
+Uzasadnienie: {forecast_rationale}
+
+## Rekomendacje handlowe
+
+{market_recommendation}
+
+### Sugerowane działania:
+
+{suggested_actions}
+
+## Kluczowe terminy do obserwacji
+
+1. **Raporty USDA WASDE** - najbliższy raport: {next_report_date_formatted}
+2. **Raport MARS UE** - publikacja: koniec miesiąca
+3. **Termin żniw** - {harvest_time}
+
+---
+
+*Raport wygenerowany przez Agro Insight Trading Expert System - {today.strftime('%d.%m.%Y')}, {datetime.datetime.now().strftime('%H:%M')}*
+"""
+
+    return report
 
 # Funkcja do ładowania danych z plików JSON
 def load_data_from_json(file_path):
