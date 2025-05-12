@@ -1,123 +1,224 @@
+"""
+Agro Insight - Satellite data analytics for agriculture
+"""
 import os
-import streamlit as st
-from utils.data_access import check_sentinel_hub_credentials
+import json
 import logging
+import datetime
+from typing import Dict, List, Any, Optional
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("app.log")
-    ]
+import streamlit as st
+import pandas as pd
+import numpy as np
+import folium
+from streamlit_folium import folium_static
+import plotly.express as px
+import matplotlib.pyplot as plt
+
+from database import init_db, get_db, Field
+from utils.data_access import get_sentinel_hub_config, check_sentinel_hub_credentials
+from config import (
+    SENTINEL_HUB_CLIENT_ID, 
+    SENTINEL_HUB_CLIENT_SECRET,
+    SATELLITE_INDICES,
+    CROP_TYPES,
+    APP_NAME,
+    APP_VERSION,
+    APP_DESCRIPTION
 )
-logger = logging.getLogger(__name__)
 
-# Initialize session state variables if not already set
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "selected_field" not in st.session_state:
-    st.session_state.selected_field = None
-if "last_analysis_results" not in st.session_state:
-    st.session_state.last_analysis_results = None
+# Initialize database
+init_db()
 
-# Page configuration
+# Configure page
 st.set_page_config(
-    page_title="Agro Insight - Vortex Analytics",
+    page_title=APP_NAME,
     page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Header
-st.title("🛰️ Agro Insight")
-st.markdown("### Satellite-Powered Agricultural Analytics")
+# Configure logging
+logger = logging.getLogger(__name__)
 
-# Dashboard header with satellite imagery
-col1, col2 = st.columns([2, 1])
-with col1:
-    st.markdown("""
-    Welcome to Agro Insight, a satellite data analytics module for Vortex Analytics. 
-    Monitor agricultural fields, track vegetation indices, predict yields, and analyze market trends using 
-    free Copernicus/Sentinel data.
-    """)
-    
-    st.markdown("""
-    ### Key Features
-    - 🛰️ Real-time satellite data analysis from Sentinel-2
-    - 🌱 Vegetation indices monitoring (NDVI, EVI, NDWI)
-    - 📈 Yield forecasting and market signal detection
-    - 🗺️ Field boundary mapping and visualization
-    - 📊 Custom reports and analytics
-    """)
-    
-with col2:
-    # Display a satellite image from the provided stock photos
-    st.image("https://pixabay.com/get/g4efcf32e7e1316c10c5547bc49ca7c6fe56ddd2b0787c5f35e822bf6392641e24ddb0209cb35a405581d490e27e587e7_1280.jpg", 
-             caption="Sentinel-2 Satellite Imagery")
+# Apply custom CSS
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #34495e;
+        margin-bottom: 1rem;
+    }
+    .info-box {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+    .success-box {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+    .warning-box {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+    .error-box {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Header
+st.markdown(f"<h1 class='main-header'>{APP_NAME}</h1>", unsafe_allow_html=True)
+st.markdown(f"<p>{APP_DESCRIPTION}</p>", unsafe_allow_html=True)
+st.markdown(f"<p><small>Version {APP_VERSION}</small></p>", unsafe_allow_html=True)
 
 # Check Sentinel Hub credentials
-client_id = os.getenv("SENTINEL_HUB_CLIENT_ID", "")
-client_secret = os.getenv("SENTINEL_HUB_CLIENT_SECRET", "")
-
 credentials_valid = False
-if client_id and client_secret:
-    with st.spinner("Checking Sentinel Hub credentials..."):
-        credentials_valid = check_sentinel_hub_credentials(client_id, client_secret)
+if SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET:
+    credentials_valid = check_sentinel_hub_credentials(
+        SENTINEL_HUB_CLIENT_ID, 
+        SENTINEL_HUB_CLIENT_SECRET
+    )
 
-if not credentials_valid:
-    st.warning("""
-    ⚠️ Sentinel Hub credentials are not set or invalid.
+if credentials_valid:
+    st.markdown(
+        "<div class='success-box'>✅ Sentinel Hub credentials are valid.</div>",
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown(
+        "<div class='warning-box'>⚠️ Sentinel Hub credentials are not set or invalid.</div>",
+        unsafe_allow_html=True
+    )
     
-    To use all features of Agro Insight, you need valid Sentinel Hub credentials:
+    st.markdown("""
+    To use the full functionality of Agro Insight, you need to set up your Sentinel Hub credentials:
+    
     1. Create a free account at [Sentinel Hub](https://www.sentinel-hub.com/)
-    2. Get your Client ID and Client Secret from the dashboard
-    3. Set them as environment variables:
-       - SENTINEL_HUB_CLIENT_ID
-       - SENTINEL_HUB_CLIENT_SECRET
+    2. Generate OAuth credentials in your dashboard
+    3. Add the credentials to the application's environment variables
     """)
-else:
-    st.success("✅ Connected to Sentinel Hub API")
 
-# Quick access cards
-st.subheader("Quick Access")
-col1, col2, col3 = st.columns(3)
+# Main content
+st.markdown("<h2 class='sub-header'>Dashboard Overview</h2>", unsafe_allow_html=True)
 
-with col1:
-    st.markdown("### 🗺️ Field Monitoring")
-    st.markdown("View NDVI, vegetation health, and soil moisture for your fields.")
-    if st.button("Open Field Monitoring", key="field_monitoring_btn"):
-        st.switch_page("pages/02_Field_Analysis.py")
+# Create tabs
+tab1, tab2, tab3 = st.tabs(["Field Summary", "Recent Activity", "Quick Actions"])
 
-with col2:
-    st.markdown("### 📊 Yield Forecast")
-    st.markdown("ML-powered crop yield predictions based on historical data.")
-    if st.button("View Yield Forecasts", key="yield_forecast_btn"):
-        st.switch_page("pages/03_Yield_Forecast.py")
+with tab1:
+    st.markdown("### Field Summary")
+    
+    # Get fields from database
+    fields = []
+    try:
+        db = next(get_db())
+        fields = db.query(Field).all()
+    except Exception as e:
+        st.error(f"Error fetching fields from database: {str(e)}")
+    
+    if fields:
+        # Create a summary table
+        field_data = []
+        for field in fields:
+            field_data.append({
+                "Name": field.name,
+                "Crop Type": field.crop_type or "Not specified",
+                "Area (ha)": field.area_hectares,
+                "Created": field.created_at.strftime('%Y-%m-%d')
+            })
+        
+        st.dataframe(pd.DataFrame(field_data), use_container_width=True)
+        
+        # Create a map showing all fields
+        st.markdown("### Field Locations")
+        
+        if fields:
+            # Calculate average center for initial map view
+            avg_lat = sum(f.center_lat for f in fields) / len(fields)
+            avg_lon = sum(f.center_lon for f in fields) / len(fields)
+            
+            # Create map
+            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
+            
+            # Add field markers
+            for field in fields:
+                folium.Marker(
+                    [field.center_lat, field.center_lon],
+                    popup=field.name,
+                    tooltip=field.name
+                ).add_to(m)
+                
+                # Add field boundary if available
+                if field.geojson:
+                    geojson_data = json.loads(field.geojson) if isinstance(field.geojson, str) else field.geojson
+                    folium.GeoJson(
+                        geojson_data,
+                        name=field.name,
+                        style_function=lambda x: {
+                            'fillColor': '#28a745',
+                            'color': '#28a745',
+                            'weight': 2,
+                            'fillOpacity': 0.2
+                        }
+                    ).add_to(m)
+            
+            # Display map
+            folium_static(m, width=800, height=500)
+    else:
+        st.info("No fields found in the database. Add fields in the Data Ingest page.")
 
-with col3:
-    st.markdown("### 💹 Market Signals")
-    st.markdown("Detect market opportunities based on satellite data analytics.")
-    if st.button("Analyze Market Signals", key="market_signals_btn"):
-        st.switch_page("pages/04_Market_Signals.py")
+with tab2:
+    st.markdown("### Recent Activity")
+    
+    # Placeholder for recent activity
+    activity_data = [
+        {"date": "2025-05-12", "type": "Field Added", "description": "New field 'Test Field 1' added"},
+        {"date": "2025-05-11", "type": "Analysis Run", "description": "NDVI analysis for 'Test Field 1'"},
+        {"date": "2025-05-10", "type": "Forecast Created", "description": "Yield forecast for 'Test Field 1'"}
+    ]
+    
+    st.dataframe(pd.DataFrame(activity_data), use_container_width=True)
 
-# Recent analysis and activity
-st.subheader("Recent Activity")
-if st.session_state.last_analysis_results:
-    # Display recent analysis results if available
-    st.json(st.session_state.last_analysis_results)
-else:
-    # Display placeholder with sample agricultural field image
-    st.image("https://pixabay.com/get/g879b44be88f7b57d084cc1720ca16fd7c256f93e15c6d03affe5cf8e36c009d93abf1f23dd42863852eb153851fdb35af3cfc66d04d2878ab81d1192661dd77a_1280.jpg", 
-             caption="Agricultural field monitoring with satellite data")
-    st.info("No recent analysis available. Start by adding a field in the Data Ingest section.")
+with tab3:
+    st.markdown("### Quick Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### Add New Field")
+        if st.button("Add Field", use_container_width=True):
+            st.switch_page("pages/01_Data_Ingest.py")
+    
+    with col2:
+        st.markdown("#### Run Analysis")
+        if st.button("Analyze Field", use_container_width=True):
+            st.switch_page("pages/02_Field_Analysis.py")
+    
+    with col3:
+        st.markdown("#### Generate Report")
+        if st.button("Create Report", use_container_width=True):
+            st.switch_page("pages/05_Reports.py")
 
 # Footer
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center">
-    <p>Agro Insight - Powered by Copernicus/Sentinel Open Data | Using free tier resources only</p>
-    <p>Data refreshed every 5 days | Resolution: 10-20m/pixel</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    "<p><small>Powered by Sentinel Hub | Developed by Vortex Analytics</small></p>",
+    unsafe_allow_html=True
+)

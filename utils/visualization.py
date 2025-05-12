@@ -1,694 +1,689 @@
+"""
+Module for visualizing satellite data and agricultural metrics.
+"""
+import os
+import json
+import logging
+import datetime
 import base64
 from io import BytesIO
-import matplotlib.pyplot as plt
+from typing import Dict, List, Tuple, Optional, Union, Any, Callable
+
 import numpy as np
 import pandas as pd
-import streamlit as st
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.dates as mdates
+from matplotlib.figure import Figure
 import folium
-from folium.plugins import MarkerCluster, HeatMap
-from typing import Dict, List, Tuple, Any, Optional
-import plotly.graph_objects as go
-import plotly.express as px
-from shapely.geometry import Polygon, Point, shape
+from folium import plugins
+from shapely.geometry import Polygon, shape
 
-def plot_ndvi_map(ndvi_array: np.ndarray, title: str = "NDVI Map") -> plt.Figure:
+from config import (
+    REPORTS_DIR,
+    SATELLITE_INDICES
+)
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Colormap definitions for different indices
+COLORMAPS = {
+    'NDVI': plt.cm.RdYlGn,    # Red-Yellow-Green
+    'EVI': plt.cm.RdYlGn,     # Red-Yellow-Green
+    'NDWI': plt.cm.Blues,     # Blue
+    'NDMI': plt.cm.Blues,     # Blue
+    'NBR': plt.cm.RdYlBu_r,   # Reversed Red-Yellow-Blue
+    'RGB': None,              # True color
+    'SCL': plt.cm.tab20       # Categorical
+}
+
+# Color ranges for different indices
+COLOR_RANGES = {
+    'NDVI': (-0.1, 1.0),
+    'EVI': (-0.1, 1.0),
+    'NDWI': (-0.3, 1.0),
+    'NDMI': (-0.3, 1.0),
+    'NBR': (-0.5, 1.0)
+}
+
+def create_colorbar(index_type: str) -> Tuple[plt.cm.ScalarMappable, Tuple[float, float]]:
     """
-    Create a matplotlib figure with NDVI visualization.
+    Create a colorbar for a given index type.
     
     Args:
-        ndvi_array: Array containing NDVI values (-1 to 1)
-        title: Title for the plot
+        index_type: Type of index ('NDVI', 'EVI', etc.)
+        
+    Returns:
+        Tuple of (colormap, value range)
+    """
+    cmap = COLORMAPS.get(index_type, plt.cm.viridis)
+    value_range = COLOR_RANGES.get(index_type, (-1.0, 1.0))
+    
+    norm = mcolors.Normalize(vmin=value_range[0], vmax=value_range[1])
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    
+    return sm, value_range
+
+def create_index_map(
+    index_array: np.ndarray,
+    index_type: str = 'NDVI',
+    title: str = None,
+    figsize: Tuple[int, int] = (10, 8)
+) -> Figure:
+    """
+    Create a map visualization for a satellite index.
+    
+    Args:
+        index_array: Array with index values
+        index_type: Type of index ('NDVI', 'EVI', etc.)
+        title: Title for the map
+        figsize: Figure size as (width, height)
         
     Returns:
         Matplotlib figure
     """
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=figsize)
     
-    # NDVI colormap
-    cmap = plt.cm.RdYlGn
+    # Get colormap and value range for the index
+    cmap = COLORMAPS.get(index_type, plt.cm.viridis)
+    value_range = COLOR_RANGES.get(index_type, (-1.0, 1.0))
     
-    # Plot NDVI with colormap
-    im = ax.imshow(ndvi_array, cmap=cmap, vmin=-1, vmax=1)
+    # Create image
+    im = ax.imshow(index_array, cmap=cmap, vmin=value_range[0], vmax=value_range[1])
     
     # Add colorbar
-    cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label('NDVI Value')
+    cbar = fig.colorbar(im, ax=ax, orientation='vertical', shrink=0.8)
+    cbar.set_label(SATELLITE_INDICES.get(index_type, index_type))
     
-    # Add title
-    ax.set_title(title)
+    # Set title
+    if title:
+        ax.set_title(title)
+    else:
+        ax.set_title(f"{SATELLITE_INDICES.get(index_type, index_type)}")
     
-    # Remove axis labels
+    # Remove axes ticks
     ax.set_xticks([])
     ax.set_yticks([])
     
+    # Add scale bar (placeholder)
+    ax.text(0.02, 0.02, "Scale: 1 pixel = 10m", transform=ax.transAxes, 
+            bbox=dict(facecolor='white', alpha=0.7))
+    
+    # Add north arrow (placeholder)
+    ax.text(0.98, 0.02, "↑N", transform=ax.transAxes, ha='right',
+            bbox=dict(facecolor='white', alpha=0.7))
+    
+    plt.tight_layout()
     return fig
 
-def plot_interactive_ndvi_map(
-    ndvi_array: np.ndarray, 
-    lat_min: float, 
-    lon_min: float, 
-    lat_max: float, 
-    lon_max: float,
-    title: str = "NDVI Map"
-) -> go.Figure:
+def create_rgb_image(
+    rgb_array: np.ndarray,
+    title: str = "RGB Composite",
+    figsize: Tuple[int, int] = (10, 8)
+) -> Figure:
     """
-    Create an interactive Plotly figure with NDVI visualization.
+    Create an RGB image visualization.
     
     Args:
-        ndvi_array: Array containing NDVI values (-1 to 1)
-        lat_min, lon_min, lat_max, lon_max: Boundaries of the map
-        title: Title for the plot
+        rgb_array: Array with RGB values (shape: height, width, 3)
+        title: Title for the image
+        figsize: Figure size as (width, height)
         
     Returns:
-        Plotly figure
+        Matplotlib figure
     """
-    # Create a heatmap using Plotly
-    fig = px.imshow(
-        ndvi_array,
-        zmin=-1, 
-        zmax=1,
-        color_continuous_scale='RdYlGn',
-        title=title,
-        labels={"color": "NDVI Value"}
-    )
+    fig, ax = plt.subplots(figsize=figsize)
     
-    # Add layout settings
-    fig.update_layout(
-        height=600,
-        width=800,
-        margin=dict(l=20, r=20, t=40, b=20),
-    )
+    # Display RGB image
+    ax.imshow(rgb_array)
     
-    # Update axes to show lat/lon instead of pixel coordinates
-    fig.update_xaxes(
-        title_text="Longitude",
-        showgrid=True,
-        range=[lon_min, lon_max]
-    )
-    fig.update_yaxes(
-        title_text="Latitude",
-        showgrid=True,
-        range=[lat_max, lat_min],  # Reversed to match geographic coordinates
-        scaleanchor="x",
-        scaleratio=1
-    )
+    # Set title
+    ax.set_title(title)
     
+    # Remove axes ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    # Add scale bar (placeholder)
+    ax.text(0.02, 0.02, "Scale: 1 pixel = 10m", transform=ax.transAxes, 
+            bbox=dict(facecolor='white', alpha=0.7))
+    
+    # Add north arrow (placeholder)
+    ax.text(0.98, 0.02, "↑N", transform=ax.transAxes, ha='right',
+            bbox=dict(facecolor='white', alpha=0.7))
+    
+    plt.tight_layout()
     return fig
 
-def plot_time_series(
-    dates: List[str], 
-    values: List[float], 
-    title: str = "Time Series", 
+def create_multi_temporal_figure(
+    time_series: Dict[str, float],
+    title: str = "Temporal Changes",
     y_label: str = "Value",
-    anomalies: List[int] = None
-) -> go.Figure:
+    figsize: Tuple[int, int] = (12, 6)
+) -> Figure:
     """
-    Create an interactive time series plot with optional anomaly highlighting.
+    Create a multi-temporal visualization from time series data.
     
     Args:
-        dates: List of date strings
-        values: List of values corresponding to dates
-        title: Title for the plot
+        time_series: Dictionary mapping date strings to values
+        title: Title for the figure
         y_label: Label for y-axis
-        anomalies: List of indices where anomalies occur
+        figsize: Figure size as (width, height)
         
     Returns:
-        Plotly figure
+        Matplotlib figure
     """
-    # Create main time series plot
-    fig = go.Figure()
+    fig, ax = plt.subplots(figsize=figsize)
     
-    # Add line plot
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=values,
-        mode='lines+markers',
-        name=y_label,
-        line=dict(color='royalblue', width=2)
-    ))
+    # Convert dates to datetime objects and handle missing values
+    dates = []
+    values = []
     
-    # Add anomalies if provided
-    if anomalies:
-        anomaly_dates = [dates[i] for i in anomalies]
-        anomaly_values = [values[i] for i in anomalies]
+    for date_str, value in time_series.items():
+        if value is not None:
+            try:
+                date = datetime.datetime.fromisoformat(date_str)
+                dates.append(date)
+                values.append(value)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid date format: {date_str}")
+    
+    if not dates:
+        ax.text(0.5, 0.5, "No valid data points", 
+                ha='center', va='center', transform=ax.transAxes)
+        ax.set_title(title)
+        return fig
+    
+    # Plot data
+    ax.plot(dates, values, 'o-', linewidth=2, markersize=6)
+    
+    # Format x-axis as dates
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.xticks(rotation=45)
+    
+    # Add labels and title
+    ax.set_xlabel('Date')
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Highlight min and max values
+    if values:
+        min_value = min(values)
+        max_value = max(values)
         
-        fig.add_trace(go.Scatter(
-            x=anomaly_dates,
-            y=anomaly_values,
-            mode='markers',
-            name='Anomalies',
-            marker=dict(
-                color='red',
-                size=10,
-                symbol='circle',
-                line=dict(
-                    color='black',
-                    width=2
-                )
-            )
-        ))
+        min_index = values.index(min_value)
+        max_index = values.index(max_value)
+        
+        ax.plot(dates[min_index], min_value, 'v', color='blue', 
+                markersize=10, label=f'Min: {min_value:.3f}')
+        ax.plot(dates[max_index], max_value, '^', color='red', 
+                markersize=10, label=f'Max: {max_value:.3f}')
+        
+        ax.legend()
     
-    # Set layout
-    fig.update_layout(
-        title=title,
-        xaxis_title='Date',
-        yaxis_title=y_label,
-        height=500,
-        width=800,
-        template='plotly_white',
-        hovermode='x unified'
-    )
-    
+    plt.tight_layout()
     return fig
 
-def plot_drought_detection(
-    dates: List[str],
-    ndvi_values: List[float],
-    drought_events: List[Dict[str, Any]]
-) -> go.Figure:
+def create_anomaly_figure(
+    time_series: Dict[str, float],
+    anomalies: Dict[str, Dict[str, Any]],
+    title: str = "Anomaly Detection",
+    y_label: str = "Value",
+    figsize: Tuple[int, int] = (12, 6)
+) -> Figure:
     """
-    Create a plot highlighting drought events in NDVI time series.
+    Create an anomaly detection visualization.
     
     Args:
-        dates: List of date strings
-        ndvi_values: List of NDVI values
-        drought_events: List of drought events detected
+        time_series: Dictionary mapping date strings to values
+        anomalies: Dictionary mapping date strings to anomaly information
+        title: Title for the figure
+        y_label: Label for y-axis
+        figsize: Figure size as (width, height)
         
     Returns:
-        Plotly figure
+        Matplotlib figure
     """
-    fig = go.Figure()
+    fig, ax = plt.subplots(figsize=figsize)
     
-    # Add NDVI time series
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=ndvi_values,
-        mode='lines+markers',
-        name='NDVI',
-        line=dict(color='green', width=2)
-    ))
+    # Convert dates to datetime objects and handle missing values
+    dates = []
+    values = []
     
-    # Add drought periods as colored rectangles
-    for event in drought_events:
-        start_date = event["start_date"]
-        end_date = event["end_date"]
-        severity = event["severity"]
-        
-        # Calculate color based on severity (darker red for more severe)
-        color_intensity = min(1.0, severity / 0.3)  # Normalize to 0-1
-        color = f'rgba(255, 0, 0, {color_intensity})'
-        
-        fig.add_shape(
-            type="rect",
-            x0=start_date,
-            y0=min(ndvi_values) - 0.05,
-            x1=end_date,
-            y1=max(ndvi_values) + 0.05,
-            fillcolor=color,
-            opacity=0.3,
-            layer="below",
-            line=dict(width=0)
-        )
+    for date_str, value in time_series.items():
+        if value is not None:
+            try:
+                date = datetime.datetime.fromisoformat(date_str)
+                dates.append(date)
+                values.append(value)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid date format: {date_str}")
     
-    # Set layout
-    fig.update_layout(
-        title='NDVI Time Series with Drought Detection',
-        xaxis_title='Date',
-        yaxis_title='NDVI Value',
-        height=500,
-        width=800,
-        template='plotly_white',
-        hovermode='x',
-        shapes=[
-            # Add horizontal line at NDVI = 0.3 (typical drought threshold)
-            dict(
-                type='line',
-                x0=dates[0],
-                y0=0.3,
-                x1=dates[-1],
-                y1=0.3,
-                line=dict(
-                    color='rgba(255, 0, 0, 0.5)',
-                    width=2,
-                    dash='dash'
-                )
-            )
-        ],
-        annotations=[
-            dict(
-                x=dates[0],
-                y=0.3,
-                xref='x',
-                yref='y',
-                text='Drought Threshold',
-                showarrow=False,
-                font=dict(
-                    color='red',
-                    size=12
-                ),
-                bgcolor='white',
-                opacity=0.7
-            )
-        ]
-    )
+    if not dates:
+        ax.text(0.5, 0.5, "No valid data points", 
+                ha='center', va='center', transform=ax.transAxes)
+        ax.set_title(title)
+        return fig
     
+    # Plot regular data points
+    ax.plot(dates, values, 'o-', color='black', linewidth=1, 
+            markersize=5, label='Normal')
+    
+    # Plot anomalies
+    anomaly_dates = []
+    anomaly_values = []
+    anomaly_types = []
+    
+    for date_str, anomaly_info in anomalies.items():
+        try:
+            date = datetime.datetime.fromisoformat(date_str)
+            value = anomaly_info["value"]
+            anomaly_type = anomaly_info.get("type", "unknown")
+            
+            anomaly_dates.append(date)
+            anomaly_values.append(value)
+            anomaly_types.append(anomaly_type)
+        except (ValueError, TypeError, KeyError):
+            logger.warning(f"Invalid anomaly data for date: {date_str}")
+    
+    # Plot high and low anomalies with different colors
+    high_dates = [date for date, atype in zip(anomaly_dates, anomaly_types) if atype == "high"]
+    high_values = [value for value, atype in zip(anomaly_values, anomaly_types) if atype == "high"]
+    
+    low_dates = [date for date, atype in zip(anomaly_dates, anomaly_types) if atype == "low"]
+    low_values = [value for value, atype in zip(anomaly_values, anomaly_types) if atype == "low"]
+    
+    if high_dates:
+        ax.scatter(high_dates, high_values, color='red', s=100, 
+                   marker='^', label='High Anomaly', zorder=10)
+    
+    if low_dates:
+        ax.scatter(low_dates, low_values, color='blue', s=100, 
+                   marker='v', label='Low Anomaly', zorder=10)
+    
+    # Format x-axis as dates
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.xticks(rotation=45)
+    
+    # Add labels and title
+    ax.set_xlabel('Date')
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add legend
+    ax.legend()
+    
+    plt.tight_layout()
     return fig
 
 def create_folium_map(
-    center_lat: float, 
-    center_lon: float, 
-    zoom: int = 10
+    lat: float,
+    lon: float,
+    zoom: int = 13,
+    tiles: str = 'OpenStreetMap'
 ) -> folium.Map:
     """
-    Create a Folium map centered at the given coordinates.
+    Create a Folium map centered at a specified location.
     
     Args:
-        center_lat: Center latitude
-        center_lon: Center longitude
+        lat: Latitude for map center
+        lon: Longitude for map center
         zoom: Initial zoom level
+        tiles: Tile provider for the map base layer
         
     Returns:
         Folium map object
     """
-    # Create the map
-    m = folium.Map(
-        location=[center_lat, center_lon],
-        zoom_start=zoom,
-        tiles='CartoDB positron',
-        control_scale=True
-    )
+    # Create map
+    m = folium.Map(location=[lat, lon], zoom_start=zoom, tiles=tiles)
     
-    # Add tile options
-    folium.TileLayer('OpenStreetMap').add_to(m)
-    folium.TileLayer('CartoDB positron').add_to(m)
-    folium.TileLayer('CartoDB dark_matter').add_to(m)
-    folium.TileLayer('Stamen Terrain').add_to(m)
-    folium.TileLayer('Stamen Toner').add_to(m)
+    # Add scale
+    folium.plugins.MeasureControl(position='bottomleft').add_to(m)
+    
+    # Add fullscreen option
+    folium.plugins.Fullscreen(position='topleft').add_to(m)
     
     # Add layer control
-    folium.LayerControl().add_to(m)
+    folium.LayerControl(position='topright').add_to(m)
     
     return m
 
 def add_geojson_to_map(
-    m: folium.Map, 
-    geojson_data: Dict, 
-    style_function: Optional[callable] = None, 
-    highlight_function: Optional[callable] = None,
-    popup_function: Optional[callable] = None,
-    name: str = "GeoJSON"
+    m: folium.Map,
+    geojson_data: Dict,
+    name: str = "Field Boundary",
+    style: Dict = None
 ) -> folium.Map:
     """
-    Add GeoJSON data to a Folium map.
+    Add a GeoJSON layer to a Folium map.
     
     Args:
         m: Folium map object
-        geojson_data: GeoJSON data as dictionary
-        style_function: Function to style GeoJSON features
-        highlight_function: Function to style GeoJSON features on hover
-        popup_function: Function to create popup content
-        name: Name for the GeoJSON layer
+        geojson_data: GeoJSON data as a dictionary
+        name: Name for the layer
+        style: Style for the GeoJSON layer
         
     Returns:
         Updated Folium map
     """
-    # Default style function
-    if style_function is None:
-        style_function = lambda x: {
+    # Default style if none provided
+    if style is None:
+        style = {
             'fillColor': '#28a745',
             'color': '#28a745',
-            'fillOpacity': 0.3,
-            'weight': 2
+            'weight': 3,
+            'fillOpacity': 0.3
         }
     
-    # Default highlight function
-    if highlight_function is None:
-        highlight_function = lambda x: {
-            'fillColor': '#28a745',
-            'color': '#000000',
-            'fillOpacity': 0.5,
-            'weight': 3
-        }
-    
-    # Add GeoJSON to map
-    if popup_function:
-        gjson = folium.GeoJson(
-            geojson_data,
-            style_function=style_function,
-            highlight_function=highlight_function,
-            name=name,
-            tooltip=folium.GeoJsonTooltip(fields=list(geojson_data['features'][0]['properties'].keys())),
-            popup=folium.GeoJsonPopup(fields=list(geojson_data['features'][0]['properties'].keys()))
-        )
-    else:
-        gjson = folium.GeoJson(
-            geojson_data,
-            style_function=style_function,
-            highlight_function=highlight_function,
-            name=name,
-            tooltip=folium.GeoJsonTooltip(fields=list(geojson_data['features'][0]['properties'].keys()))
-        )
-    
-    gjson.add_to(m)
-    
-    return m
-
-def overlay_raster_on_map(
-    m: folium.Map,
-    raster_data: np.ndarray,
-    bounds: List[float],
-    colormap: str = 'RdYlGn',
-    opacity: float = 0.7,
-    name: str = "Raster Layer"
-) -> folium.Map:
-    """
-    Overlay a raster image on a Folium map.
-    
-    Args:
-        m: Folium map object
-        raster_data: 2D array with raster values
-        bounds: [min_lon, min_lat, max_lon, max_lat]
-        colormap: Matplotlib colormap name
-        opacity: Opacity of the overlay
-        name: Name for the raster layer
-        
-    Returns:
-        Updated Folium map
-    """
-    import matplotlib.cm as cm
-    
-    # Normalize data to 0-1 range for colormap
-    if raster_data.min() != raster_data.max():
-        norm_data = (raster_data - raster_data.min()) / (raster_data.max() - raster_data.min())
-    else:
-        norm_data = raster_data / raster_data.max() if raster_data.max() > 0 else raster_data
-    
-    # Get colormap
-    cmap = cm.get_cmap(colormap)
-    
-    # Convert to RGBA
-    rgba_img = cmap(norm_data)
-    
-    # Convert to PIL Image
-    from PIL import Image
-    img = Image.fromarray((rgba_img * 255).astype(np.uint8))
-    
-    # Create image overlay
-    image_overlay = folium.raster_layers.ImageOverlay(
-        image=img,
-        bounds=[[bounds[1], bounds[0]], [bounds[3], bounds[2]]],
-        opacity=opacity,
+    # Add GeoJSON layer
+    folium.GeoJson(
+        geojson_data,
         name=name,
-        zindex=1
-    )
-    
-    # Add to map
-    image_overlay.add_to(m)
+        style_function=lambda x: style
+    ).add_to(m)
     
     return m
 
-def plot_yield_forecast(
-    dates: List[str],
-    historical_yield: List[float],
-    forecasted_yield: Dict[str, float],
-    crop_type: str = "Crop"
-) -> go.Figure:
+def create_comparison_figure(
+    before_image: np.ndarray,
+    after_image: np.ndarray,
+    before_date: str,
+    after_date: str,
+    index_type: str = 'NDVI',
+    figsize: Tuple[int, int] = (16, 8)
+) -> Figure:
     """
-    Create a plot showing historical yield data and forecasts.
+    Create a side-by-side comparison of images from two dates.
     
     Args:
-        dates: List of historical dates
-        historical_yield: List of historical yield values
-        forecasted_yield: Dictionary of forecasted dates and yields
-        crop_type: Type of crop
+        before_image: Array for the earlier date
+        after_image: Array for the later date
+        before_date: Date string for the earlier image
+        after_date: Date string for the later image
+        index_type: Type of index ('NDVI', 'EVI', etc.)
+        figsize: Figure size as (width, height)
         
     Returns:
-        Plotly figure
+        Matplotlib figure
     """
-    fig = go.Figure()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
     
-    # Add historical yield
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=historical_yield,
-        mode='lines+markers',
-        name='Historical Yield',
-        line=dict(color='blue', width=2)
-    ))
+    # Get colormap and value range for the index
+    cmap = COLORMAPS.get(index_type, plt.cm.viridis)
+    value_range = COLOR_RANGES.get(index_type, (-1.0, 1.0))
     
-    # Add forecasted yield
-    forecast_dates = list(forecasted_yield.keys())
-    forecast_values = list(forecasted_yield.values())
+    # Display before image
+    im1 = ax1.imshow(before_image, cmap=cmap, vmin=value_range[0], vmax=value_range[1])
+    ax1.set_title(f"{before_date}")
+    ax1.set_xticks([])
+    ax1.set_yticks([])
     
-    fig.add_trace(go.Scatter(
-        x=forecast_dates,
-        y=forecast_values,
-        mode='markers',
-        name='Forecasted Yield',
-        marker=dict(
-            color='red',
-            size=10,
-            symbol='star',
-            line=dict(
-                color='black',
-                width=1
-            )
+    # Display after image
+    im2 = ax2.imshow(after_image, cmap=cmap, vmin=value_range[0], vmax=value_range[1])
+    ax2.set_title(f"{after_date}")
+    ax2.set_xticks([])
+    ax2.set_yticks([])
+    
+    # Add common colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = fig.colorbar(im2, cax=cbar_ax)
+    cbar.set_label(SATELLITE_INDICES.get(index_type, index_type))
+    
+    # Add super title
+    fig.suptitle(f"{SATELLITE_INDICES.get(index_type, index_type)} Comparison", fontsize=16)
+    
+    plt.tight_layout(rect=[0, 0, 0.9, 0.95])
+    return fig
+
+def create_difference_figure(
+    before_image: np.ndarray,
+    after_image: np.ndarray,
+    before_date: str,
+    after_date: str,
+    index_type: str = 'NDVI',
+    figsize: Tuple[int, int] = (12, 8)
+) -> Figure:
+    """
+    Create a difference map between two dates.
+    
+    Args:
+        before_image: Array for the earlier date
+        after_image: Array for the later date
+        before_date: Date string for the earlier image
+        after_date: Date string for the later image
+        index_type: Type of index ('NDVI', 'EVI', etc.)
+        figsize: Figure size as (width, height)
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Calculate difference
+    diff = after_image - before_image
+    
+    # Create color map for difference
+    diff_cmap = plt.cm.RdBu_r
+    max_diff = max(abs(np.nanmin(diff)), abs(np.nanmax(diff)))
+    diff_range = (-max_diff, max_diff)
+    
+    # Display difference
+    im = ax.imshow(diff, cmap=diff_cmap, vmin=diff_range[0], vmax=diff_range[1])
+    
+    # Add colorbar
+    cbar = fig.colorbar(im, ax=ax, orientation='vertical')
+    cbar.set_label(f"{index_type} Difference")
+    
+    # Set title
+    ax.set_title(f"{index_type} Change: {before_date} to {after_date}")
+    
+    # Remove axes ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    plt.tight_layout()
+    return fig
+
+def create_histogram_figure(
+    index_array: np.ndarray,
+    index_type: str = 'NDVI',
+    title: str = None,
+    figsize: Tuple[int, int] = (10, 6)
+) -> Figure:
+    """
+    Create a histogram visualization for index values.
+    
+    Args:
+        index_array: Array with index values
+        index_type: Type of index ('NDVI', 'EVI', etc.)
+        title: Title for the histogram
+        figsize: Figure size as (width, height)
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Get value range for the index
+    value_range = COLOR_RANGES.get(index_type, (-1.0, 1.0))
+    
+    # Flatten the array and remove NaN values
+    valid_values = index_array[~np.isnan(index_array)].flatten()
+    
+    if len(valid_values) > 0:
+        # Create histogram
+        n, bins, patches = ax.hist(
+            valid_values, 
+            bins=50, 
+            range=value_range, 
+            alpha=0.7, 
+            color='steelblue',
+            density=True
         )
-    ))
+        
+        # Add a kernel density estimate
+        from scipy import stats
+        kde = stats.gaussian_kde(valid_values)
+        x = np.linspace(value_range[0], value_range[1], 100)
+        ax.plot(x, kde(x), 'r-', linewidth=2)
+        
+        # Add vertical lines for statistics
+        mean_val = np.mean(valid_values)
+        median_val = np.median(valid_values)
+        
+        ax.axvline(mean_val, color='green', linestyle='--', linewidth=2, 
+                   label=f'Mean: {mean_val:.3f}')
+        ax.axvline(median_val, color='orange', linestyle='-.', linewidth=2, 
+                   label=f'Median: {median_val:.3f}')
+        
+        # Add legend
+        ax.legend()
+    else:
+        ax.text(0.5, 0.5, "No valid data points", 
+                ha='center', va='center', transform=ax.transAxes)
     
-    # Add a line connecting the last historical point to first forecast point
-    if dates and forecast_dates:
-        fig.add_trace(go.Scatter(
-            x=[dates[-1], forecast_dates[0]],
-            y=[historical_yield[-1], forecast_values[0]],
-            mode='lines',
-            line=dict(color='gray', width=1, dash='dash'),
-            showlegend=False
-        ))
+    # Set labels and title
+    ax.set_xlabel(SATELLITE_INDICES.get(index_type, index_type))
+    ax.set_ylabel('Density')
     
-    # Set layout
-    fig.update_layout(
-        title=f'{crop_type} Yield Forecast',
-        xaxis_title='Date',
-        yaxis_title='Yield (t/ha)',
-        height=500,
-        width=800,
-        template='plotly_white',
-        hovermode='x unified'
-    )
+    if title:
+        ax.set_title(title)
+    else:
+        ax.set_title(f"{SATELLITE_INDICES.get(index_type, index_type)} Distribution")
     
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
     return fig
 
-def plot_market_signals(
-    dates: List[str],
-    prices: List[float],
-    signals: List[Dict[str, Any]]
-) -> go.Figure:
+def create_correlation_figure(
+    x_data: Dict[str, float],
+    y_data: Dict[str, float],
+    x_label: str = "Variable X",
+    y_label: str = "Variable Y",
+    title: str = "Correlation Analysis",
+    figsize: Tuple[int, int] = (10, 6)
+) -> Figure:
     """
-    Create a plot showing market prices and trading signals.
+    Create a correlation scatter plot between two variables.
     
     Args:
-        dates: List of dates
-        prices: List of market prices
-        signals: List of signal events with date, action, confidence
+        x_data: Dictionary mapping dates to x values
+        y_data: Dictionary mapping dates to y values
+        x_label: Label for x-axis
+        y_label: Label for y-axis
+        title: Title for the figure
+        figsize: Figure size as (width, height)
         
     Returns:
-        Plotly figure
+        Matplotlib figure
     """
-    fig = go.Figure()
+    fig, ax = plt.subplots(figsize=figsize)
     
-    # Add price chart
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=prices,
-        mode='lines',
-        name='Price',
-        line=dict(color='black', width=2)
-    ))
+    # Extract common dates and corresponding values
+    common_dates = set(x_data.keys()) & set(y_data.keys())
     
-    # Add buy signals
-    buy_dates = [s['date'] for s in signals if s['action'] == 'LONG']
-    buy_prices = [prices[dates.index(d)] if d in dates else None for d in buy_dates]
-    buy_confidences = [s['confidence'] for s in signals if s['action'] == 'LONG']
+    x_values = []
+    y_values = []
+    dates = []
     
-    if buy_dates:
-        fig.add_trace(go.Scatter(
-            x=buy_dates,
-            y=buy_prices,
-            mode='markers',
-            name='BUY Signal',
-            marker=dict(
-                color='green',
-                size=[c * 20 for c in buy_confidences],  # Size based on confidence
-                symbol='triangle-up',
-                line=dict(
-                    color='darkgreen',
-                    width=1
-                )
-            ),
-            text=[f"Confidence: {c:.2f}" for c in buy_confidences],
-            hoverinfo='text+x+y'
-        ))
+    for date in common_dates:
+        x_val = x_data.get(date)
+        y_val = y_data.get(date)
+        
+        if x_val is not None and y_val is not None:
+            x_values.append(x_val)
+            y_values.append(y_val)
+            dates.append(date)
     
-    # Add sell signals
-    sell_dates = [s['date'] for s in signals if s['action'] == 'SHORT']
-    sell_prices = [prices[dates.index(d)] if d in dates else None for d in sell_dates]
-    sell_confidences = [s['confidence'] for s in signals if s['action'] == 'SHORT']
+    if not x_values or not y_values:
+        ax.text(0.5, 0.5, "No matching data points", 
+                ha='center', va='center', transform=ax.transAxes)
+        ax.set_title(title)
+        return fig
     
-    if sell_dates:
-        fig.add_trace(go.Scatter(
-            x=sell_dates,
-            y=sell_prices,
-            mode='markers',
-            name='SELL Signal',
-            marker=dict(
-                color='red',
-                size=[c * 20 for c in sell_confidences],  # Size based on confidence
-                symbol='triangle-down',
-                line=dict(
-                    color='darkred',
-                    width=1
-                )
-            ),
-            text=[f"Confidence: {c:.2f}" for c in sell_confidences],
-            hoverinfo='text+x+y'
-        ))
+    # Create scatter plot
+    scatter = ax.scatter(x_values, y_values, alpha=0.7, s=50)
     
-    # Set layout
-    fig.update_layout(
-        title='Market Prices and Trading Signals',
-        xaxis_title='Date',
-        yaxis_title='Price',
-        height=600,
-        width=900,
-        template='plotly_white',
-        hovermode='x unified'
-    )
+    # Calculate and plot linear regression
+    if len(x_values) > 1:
+        from scipy import stats
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x_values, y_values)
+        
+        x_line = np.array([min(x_values), max(x_values)])
+        y_line = slope * x_line + intercept
+        
+        ax.plot(x_line, y_line, 'r-', linewidth=2, 
+                label=f'y = {slope:.3f}x + {intercept:.3f}')
+        
+        # Add correlation coefficient
+        ax.text(0.05, 0.95, f'r = {r_value:.3f}\np = {p_value:.3g}', 
+                transform=ax.transAxes, fontsize=10,
+                bbox=dict(facecolor='white', alpha=0.7))
     
+    # Set labels and title
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add legend if regression line exists
+    if len(x_values) > 1:
+        ax.legend()
+    
+    plt.tight_layout()
     return fig
 
-def plot_feature_importance(
-    features: List[str],
-    importance_values: List[float],
-    title: str = "Feature Importance"
-) -> go.Figure:
+def fig_to_base64(fig: Figure) -> str:
     """
-    Create a horizontal bar chart of feature importance.
+    Convert a matplotlib figure to a base64 encoded string.
     
     Args:
-        features: List of feature names
-        importance_values: List of importance values
-        title: Title for the plot
+        fig: Matplotlib figure
         
     Returns:
-        Plotly figure
+        Base64 encoded string
     """
-    # Sort features by importance
-    sorted_idx = np.argsort(importance_values)
-    sorted_features = [features[i] for i in sorted_idx]
-    sorted_importance = [importance_values[i] for i in sorted_idx]
-    
-    # Create figure
-    fig = go.Figure(go.Bar(
-        x=sorted_importance,
-        y=sorted_features,
-        orientation='h',
-        marker=dict(
-            color=sorted_importance,
-            colorscale='YlGnBu',
-            colorbar=dict(title='Importance')
-        )
-    ))
-    
-    # Set layout
-    fig.update_layout(
-        title=title,
-        xaxis_title='Importance',
-        yaxis_title='Feature',
-        height=500,
-        width=800,
-        template='plotly_white'
-    )
-    
-    return fig
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=100)
+    buf.seek(0)
+    img_str = base64.b64encode(buf.read()).decode('utf-8')
+    return img_str
 
-def plot_correlation_heatmap(
-    correlation_matrix: pd.DataFrame,
-    title: str = "Correlation Matrix"
-) -> go.Figure:
+def save_figure(
+    fig: Figure,
+    filename: str,
+    dpi: int = 150,
+    bbox_inches: str = 'tight'
+) -> str:
     """
-    Create a heatmap of correlation values.
+    Save a figure to file.
     
     Args:
-        correlation_matrix: Pandas DataFrame with correlation values
-        title: Title for the plot
+        fig: Matplotlib figure
+        filename: Output filename
+        dpi: Resolution in dots per inch
+        bbox_inches: Bounding box in inches
         
     Returns:
-        Plotly figure
+        Path to the saved file
     """
-    fig = px.imshow(
-        correlation_matrix,
-        text_auto='.2f',
-        color_continuous_scale='RdBu_r',
-        zmin=-1,
-        zmax=1,
-        title=title
-    )
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     
-    # Set layout
-    fig.update_layout(
-        height=700,
-        width=700,
-        template='plotly_white'
-    )
+    # Save figure
+    fig.savefig(filename, dpi=dpi, bbox_inches=bbox_inches)
+    logger.info(f"Figure saved to {filename}")
     
-    return fig
-
-def plot_pca_clusters(
-    pca_results: np.ndarray,
-    cluster_labels: np.ndarray,
-    explained_variance: List[float],
-    title: str = "PCA and Clustering Results"
-) -> go.Figure:
-    """
-    Create a scatter plot of PCA results with cluster labels.
-    
-    Args:
-        pca_results: PCA transformed data (n_samples, n_components)
-        cluster_labels: Cluster labels for each sample
-        explained_variance: Explained variance ratio for each component
-        title: Title for the plot
-        
-    Returns:
-        Plotly figure
-    """
-    # Create a dataframe for easy plotting
-    df = pd.DataFrame({
-        'PC1': pca_results[:, 0],
-        'PC2': pca_results[:, 1],
-        'Cluster': cluster_labels
-    })
-    
-    # Create figure
-    fig = px.scatter(
-        df,
-        x='PC1',
-        y='PC2',
-        color='Cluster',
-        title=title,
-        color_discrete_sequence=px.colors.qualitative.G10,
-        labels={
-            'PC1': f'PC1 ({explained_variance[0]:.1%} variance)',
-            'PC2': f'PC2 ({explained_variance[1]:.1%} variance)'
-        }
-    )
-    
-    # Set layout
-    fig.update_layout(
-        height=600,
-        width=800,
-        template='plotly_white',
-        legend_title='Cluster'
-    )
-    
-    return fig
+    return filename

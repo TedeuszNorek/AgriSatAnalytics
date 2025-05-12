@@ -12,17 +12,14 @@ from functools import wraps
 
 import numpy as np
 from shapely.geometry import Polygon, shape
-from sentinelhub import (
-    SHConfig, 
-    CRS, 
-    BBox, 
-    DataCollection, 
-    MimeType, 
-    SentinelHubRequest, 
-    bbox_to_dimensions,
-    SentinelHubDownloadClient,
-    DownloadRequest
-)
+from sentinelhub.config import SHConfig
+from sentinelhub.constants import CRS, MimeType
+from sentinelhub.geometry import BBox
+from sentinelhub.data_collections import DataCollection
+from sentinelhub.api.process import SentinelHubRequest
+from sentinelhub.geo_utils import bbox_to_dimensions
+from sentinelhub.download.sentinelhub_client import SentinelHubDownloadClient
+from sentinelhub.download.models import DownloadRequest
 import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
