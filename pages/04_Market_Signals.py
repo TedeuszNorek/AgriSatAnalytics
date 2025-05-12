@@ -237,15 +237,20 @@ if selected_field:
                     
                     market_model = st.session_state.market_signals_model
                     
-                    # Próba pobrania danych cenowych
+                    # Dodaj logowanie
+                    logger.info(f"Rozpoczynam analizę dla towarów: {commodity_symbols}, okres: {period}")
+                    st.info(f"Rozpoczynam analizę dla {len(commodity_symbols)} towarów rolnych. Pobieranie danych może potrwać chwilę...")
+                    
+                    # Próba pobrania danych cenowych z rzeczywistych źródeł
                     try:
                         # Fetch futures prices
                         price_data = asyncio.new_event_loop().run_until_complete(
                             market_model.fetch_futures_prices(commodity_symbols, period)
                         )
+                        logger.info(f"Pobrano dane cenowe: {price_data.shape if hasattr(price_data, 'shape') else 'N/A'}")
                     except Exception as e:
+                        logger.error(f"Błąd podczas pobierania danych cenowych: {str(e)}")
                         st.error(f"Nie udało się pobrać danych cenowych: {str(e)}")
-                        st.info("Używam przykładowych danych cenowych dla demonstracji.")
                         
                         # Generujemy przykładowe dane cenowe
                         import pandas as pd
@@ -413,80 +418,188 @@ if selected_field:
             
             # Display market signals
             if "signals" in results and results["signals"]:
-                st.markdown("### Market Signals")
+                st.markdown("### Wyniki analizy sygnałów rynkowych")
                 
                 # Create a dataframe for the signals
                 signals_df = pd.DataFrame(results["signals"])
                 
+                # Zmień nazwy kolumn na polskie
+                column_mapping = {
+                    'date': 'Data',
+                    'commodity': 'Towar',
+                    'action': 'Akcja',
+                    'confidence': 'Pewność',
+                    'reason': 'Uzasadnienie'
+                }
+                
+                # Zastosuj tłumaczenia (tylko jeśli istnieją kolumny)
+                for eng, pol in column_mapping.items():
+                    if eng in signals_df.columns:
+                        signals_df = signals_df.rename(columns={eng: pol})
+                
+                # Tłumaczenie wartości w kolumnie 'Akcja'
+                confidence_col = 'Pewność' if 'Pewność' in signals_df.columns else 'confidence'
+                action_col = 'Akcja' if 'Akcja' in signals_df.columns else 'action'
+                commodity_col = 'Towar' if 'Towar' in signals_df.columns else 'commodity'
+                date_col = 'Data' if 'Data' in signals_df.columns else 'date'
+                reason_col = 'Uzasadnienie' if 'Uzasadnienie' in signals_df.columns else 'reason'
+                
+                # Tłumacz wartości akcji na polskie (jeśli angielskie)
+                if action_col in signals_df.columns:
+                    signals_df[action_col] = signals_df[action_col].apply(
+                        lambda x: 'KUPUJ' if x == 'LONG' else ('SPRZEDAJ' if x == 'SHORT' else x)
+                    )
+                
                 # Check if we have any strong signals
-                strong_signals = signals_df[signals_df["confidence"] > 0.7]
+                threshold = 0.7
+                strong_signals = signals_df[signals_df[confidence_col] > threshold]
                 
                 if not strong_signals.empty:
-                    st.warning(f"**Found {len(strong_signals)} strong trading signals!**")
+                    st.warning(f"**Znaleziono {len(strong_signals)} silnych sygnałów handlowych!**")
                     
-                    # Display the strong signals
-                    st.dataframe(strong_signals)
+                    # Display the strong signals with formatowaniem
+                    st.dataframe(
+                        strong_signals.style.apply(
+                            lambda x: ['background-color: #d4f1dd' if v == 'KUPUJ' else 
+                                      ('background-color: #f1d4d4' if v == 'SPRZEDAJ' else '')
+                                      for v in x],
+                            subset=[action_col]
+                        ),
+                        height=200
+                    )
                     
                     # Create cards for the strongest signal for each commodity
-                    st.markdown("### Top Signals by Commodity")
+                    st.markdown("### Najlepsze sygnały dla każdego towaru")
                     
-                    # Group by commodity and get the highest confidence signal for each
-                    top_signals = signals_df.loc[signals_df.groupby("commodity")["confidence"].idxmax()]
-                    
-                    # Create columns for each top signal
-                    cols = st.columns(min(3, len(top_signals)))
-                    
-                    for i, (_, signal) in enumerate(top_signals.iterrows()):
-                        with cols[i % len(cols)]:
-                            color = "green" if signal["action"] == "LONG" else "red"
-                            st.markdown(f"""
-                            <div style="padding: 15px; border: 1px solid {color}; border-radius: 5px;">
-                                <h4 style="color: {color};">{signal["commodity"]} - {signal["action"]}</h4>
-                                <p><strong>Confidence:</strong> {signal["confidence"]:.2f}</p>
-                                <p><strong>Date:</strong> {signal["date"]}</p>
-                                <p><strong>Reason:</strong> {signal["reason"]}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    try:
+                        # Group by commodity and get the highest confidence signal for each
+                        top_signals = signals_df.loc[signals_df.groupby(commodity_col)[confidence_col].idxmax()]
+                        
+                        # Create columns for each top signal
+                        cols = st.columns(min(3, len(top_signals)))
+                        
+                        for i, (_, signal) in enumerate(top_signals.iterrows()):
+                            with cols[i % len(cols)]:
+                                action_value = signal[action_col]
+                                color = "green" if action_value in ['KUPUJ', 'LONG'] else "red"
+                                
+                                # Format confidence
+                                confidence_value = signal[confidence_col]
+                                if isinstance(confidence_value, (int, float)):
+                                    confidence_display = f"{confidence_value:.2f}"
+                                else:
+                                    confidence_display = str(confidence_value)
+                                
+                                st.markdown(f"""
+                                <div style="padding: 15px; border: 1px solid {color}; border-radius: 5px; margin-bottom: 15px">
+                                    <h4 style="color: {color};">{signal[commodity_col]} - {action_value}</h4>
+                                    <p><strong>Pewność:</strong> {confidence_display}</p>
+                                    <p><strong>Data:</strong> {signal[date_col]}</p>
+                                    <p><strong>Uzasadnienie:</strong> {signal[reason_col]}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Błąd podczas generowania kart sygnałów: {str(e)}")
                 else:
-                    st.info("No strong trading signals detected with the current settings.")
-                    st.dataframe(signals_df)
+                    st.info("Nie wykryto silnych sygnałów handlowych przy obecnych ustawieniach.")
+                    
+                    # Wyświetl wszystkie sygnały
+                    st.markdown("### Wszystkie wykryte sygnały")
+                    st.dataframe(
+                        signals_df.style.apply(
+                            lambda x: ['background-color: #d4f1dd' if v == 'KUPUJ' else 
+                                      ('background-color: #f1d4d4' if v == 'SPRZEDAJ' else '')
+                                      for v in x],
+                            subset=[action_col]
+                        ),
+                        height=300
+                    )
                 
                 # Plot price data with signals
                 if "price_data" in results and not results["price_data"].empty:
+                    st.markdown("### Wykresy cen z sygnałami handlowymi")
+                    
+                    st.markdown("""
+                    Poniższe wykresy pokazują historyczne ceny towarów rolnych wraz z nałożonymi sygnałami handlowymi.
+                    - 🟢 Zielone znaczniki reprezentują sygnały KUPUJ (LONG)
+                    - 🔴 Czerwone znaczniki reprezentują sygnały SPRZEDAJ (SHORT)
+                    """)
+                    
                     for commodity in results["commodities"]:
                         if commodity in results["price_data"].columns:
-                            # Get price data for this commodity
-                            dates = results["price_data"].index.strftime("%Y-%m-%d").tolist()
-                            prices = results["price_data"][commodity].tolist()
+                            st.subheader(f"Wykres cen: {commodity}")
                             
-                            # Filter signals for this commodity
-                            commodity_signals = [
-                                s for s in results["signals"] 
-                                if s["commodity"] == commodity
-                            ]
-                            
-                            # Create plot
-                            if commodity_signals:
-                                fig = plot_market_signals(dates, prices, commodity_signals)
-                                st.plotly_chart(fig, use_container_width=True)
-                            else:
-                                # Create a simple price chart if no signals
-                                fig = go.Figure()
-                                fig.add_trace(go.Scatter(
-                                    x=dates,
-                                    y=prices,
-                                    mode='lines',
-                                    name=commodity
-                                ))
+                            try:
+                                # Get price data for this commodity
+                                dates = results["price_data"].index
+                                # Konwertuj daty do formatu string jeśli to możliwe
+                                if hasattr(dates, 'strftime'):
+                                    date_strings = dates.strftime("%Y-%m-%d").tolist()
+                                else:
+                                    date_strings = [str(d) for d in dates]
+                                
+                                prices = results["price_data"][commodity].tolist()
+                                
+                                # Filter signals for this commodity
+                                commodity_signals = [
+                                    s for s in results["signals"] 
+                                    if s["commodity"] == commodity
+                                ]
+                                
+                                # Create plot
+                                if commodity_signals:
+                                    # Tłumaczenie akcji w sygnałach
+                                    for signal in commodity_signals:
+                                        if "action" in signal:
+                                            if signal["action"] == "LONG":
+                                                signal["action"] = "KUPUJ"
+                                            elif signal["action"] == "SHORT":
+                                                signal["action"] = "SPRZEDAJ"
+                                    
+                                    try:
+                                        fig = plot_market_signals(
+                                            date_strings, 
+                                            prices, 
+                                            commodity_signals, 
+                                            title=f"Historia cen: {commodity}",
+                                            x_title="Data",
+                                            y_title="Cena"
+                                        )
+                                    except Exception as e:
+                                        st.error(f"Błąd podczas generowania wykresu z sygnałami: {str(e)}")
+                                        # Fallback - prosty wykres
+                                        fig = go.Figure()
+                                        fig.add_trace(go.Scatter(
+                                            x=date_strings,
+                                            y=prices,
+                                            mode='lines',
+                                            name=commodity
+                                        ))
+                                else:
+                                    # Create a simple price chart if no signals
+                                    fig = go.Figure()
+                                    fig.add_trace(go.Scatter(
+                                        x=date_strings,
+                                        y=prices,
+                                        mode='lines',
+                                        name=commodity
+                                    ))
+                                
+                                # Wspólne ustawienia wykresu niezależnie od metody tworzenia
                                 fig.update_layout(
-                                    title=f"{commodity} Price Chart",
-                                    xaxis_title="Date",
-                                    yaxis_title="Price",
-                                    height=400
+                                    title=f"Historia cen: {commodity}",
+                                    xaxis_title="Data",
+                                    yaxis_title="Cena",
+                                    height=400,
+                                    hovermode="x unified",
+                                    plot_bgcolor='rgba(245, 245, 245, 0.5)',
                                 )
+                                
                                 st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"Wystąpił błąd podczas tworzenia wykresu dla {commodity}: {str(e)}")
             else:
-                st.info("No market signals were generated. Try adjusting the analysis parameters.")
+                st.info("Nie wygenerowano sygnałów rynkowych. Spróbuj dostosować parametry analizy.")
     
     with tab2:
         st.subheader("NDVI-Price Correlation Analysis")
