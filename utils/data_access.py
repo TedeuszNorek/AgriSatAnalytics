@@ -55,12 +55,18 @@ def check_sentinel_hub_credentials(client_id: str, client_secret: str) -> bool:
         config.sh_client_id = client_id
         config.sh_client_secret = client_secret
         
-        # Try to get an OAuth token, which will verify credentials
-        config.sh_base_url = "https://services.sentinel-hub.com"
+        # Instead of trying to get a token directly, we'll make a simple request
+        # to test the credentials
         
-        # If token retrieval succeeds, credentials are valid
-        token_info = config.get_token()
-        return bool(token_info)
+        # Create a simple request to verify credentials
+        from sentinelhub.api.catalog import CatalogAPI
+        catalog_api = CatalogAPI(config=config)
+        
+        # Make a minimal request to check authentication
+        result = catalog_api.get_collections()
+        
+        # If we get here without error, credentials are valid
+        return True
     except Exception as e:
         logger.error(f"Failed to validate Sentinel Hub credentials: {str(e)}")
         return False
@@ -118,37 +124,39 @@ def get_available_scenes(
     start_date_str = start_date.strftime("%Y-%m-%dT00:00:00Z")
     end_date_str = end_date.strftime("%Y-%m-%dT23:59:59Z")
     
-    # Create download client
-    download_client = SentinelHubDownloadClient(config=config)
+    # Use Catalog API instead of download client
+    from sentinelhub.api.catalog import CatalogAPI
+    catalog_api = CatalogAPI(config=config)
     
-    # Create search request
-    search_request = {
-        "dataFilter": {
-            "timeRange": {
-                "from": start_date_str,
-                "to": end_date_str
-            },
-            "maxCloudCoverage": max_cloud_coverage
+    # Get the bounding box coordinates in the right format (west, south, east, north)
+    bbox_coords = bbox.get_polygon().bounds
+    
+    # Create search parameters
+    search_params = {
+        "collections": ["sentinel-2-l2a"],
+        "bbox": bbox_coords,
+        "time": f"{start_date_str}/{end_date_str}",
+        "query": {
+            "eo:cloud_cover": {
+                "lt": max_cloud_coverage
+            }
         },
-        "collections": [
-            {"id": "sentinel-2-l2a"}
-        ],
-        "bbox": bbox.get_lower_left() + bbox.get_upper_right(),
         "limit": 50
     }
     
     try:
         # Execute search
-        search_results = download_client.search(search_request)
+        search_results = catalog_api.search(**search_params)
         
         # Process and return results
         scenes = []
-        for tile in search_results:
+        for feature in search_results.get_features():
+            properties = feature.properties
             scenes.append({
-                "id": tile["id"],
-                "date": tile["properties"]["datetime"],
-                "cloud_cover": tile["properties"].get("eo:cloud_cover", 0),
-                "metadata": tile
+                "id": feature.id,
+                "date": properties.get("datetime"),
+                "cloud_cover": properties.get("eo:cloud_cover", 0),
+                "metadata": properties
             })
         
         logger.info(f"Found {len(scenes)} scenes for the given bbox and time range")
@@ -162,7 +170,7 @@ def fetch_sentinel_data(
     time_interval: Tuple[str, str],
     resolution: int = 10,
     data_collection: DataCollection = DataCollection.SENTINEL2_L2A,
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[Dict[str, np.ndarray], Dict]:
     """Fetch Sentinel-2 data for the specified bounding box and time interval."""
     config = get_sentinel_hub_config()
     
@@ -195,20 +203,25 @@ def fetch_sentinel_data(
     """
     
     try:
+        # Import appropriate modules for processing
+        from sentinelhub.api.process_api import SentinelHubRequest, MosaickingOrder
+        from sentinelhub.api.input_data import SentinelHubInputData
+        
+        # Create input data
+        input_data = SentinelHubInputData(
+            data_collection,
+            time_interval=time_interval,
+            mosaicking_order=MosaickingOrder.LEAST_CC
+        )
+        
         # Create SentinelHub request
         request = SentinelHubRequest(
             evalscript=evalscript,
-            input_data=[
-                SentinelHubRequest.input_data(
-                    data_collection=data_collection,
-                    time_interval=time_interval,
-                    mosaicking_order='leastCC'
-                )
-            ],
+            input_data=[input_data],
             responses=[
-                SentinelHubRequest.output_response('RGB', MimeType.PNG),
-                SentinelHubRequest.output_response('NDVI', MimeType.TIFF),
-                SentinelHubRequest.output_response('SCL', MimeType.TIFF)
+                {"identifier": "RGB", "format": MimeType.PNG},
+                {"identifier": "NDVI", "format": MimeType.TIFF},
+                {"identifier": "SCL", "format": MimeType.TIFF}
             ],
             bbox=bbox,
             size=(width, height),
@@ -225,8 +238,8 @@ def fetch_sentinel_data(
         
         # Create metadata dictionary
         metadata = {
-            "bbox": bbox.get_lower_left() + bbox.get_upper_right(),
-            "crs": bbox.crs.ogc_string(),
+            "bbox": bbox.bbox,  # Use the bbox property directly instead of get_lower_left/upper_right
+            "crs": str(bbox.crs),
             "time_interval": time_interval,
             "resolution": resolution,
             "width": width,
@@ -235,7 +248,7 @@ def fetch_sentinel_data(
             "timestamp": datetime.datetime.now().isoformat()
         }
         
-        # Return the data and metadata as a tuple of arrays
+        # Return the data and metadata
         return {
             "rgb": rgb_image,
             "ndvi": ndvi_image,
