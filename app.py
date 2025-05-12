@@ -216,6 +216,51 @@ with tab3:
         if st.button("Create Report", use_container_width=True):
             st.switch_page("pages/05_Reports.py")
 
+# Sidebar debug options
+with st.sidebar:
+    st.markdown("---")
+    if st.checkbox("Show Debug Options"):
+        st.markdown("### Debug & Diagnostics")
+        
+        # Debug buttons
+        if st.button("Test Sentinel Hub Connection", use_container_width=True):
+            with st.spinner("Testing Sentinel Hub connection..."):
+                try:
+                    import traceback
+                    # Log the credentials (without revealing them)
+                    st.info(f"Using Sentinel Hub credentials with client ID starting with '{SENTINEL_HUB_CLIENT_ID[:4] if SENTINEL_HUB_CLIENT_ID else 'None'}...'")
+                    
+                    # Test the connection
+                    is_valid = check_sentinel_hub_credentials(
+                        SENTINEL_HUB_CLIENT_ID, 
+                        SENTINEL_HUB_CLIENT_SECRET
+                    )
+                    
+                    if is_valid:
+                        st.success("✅ Sentinel Hub connection successful! Credentials are valid.")
+                    else:
+                        st.error("❌ Could not authenticate with Sentinel Hub. Please check your credentials.")
+                except Exception as e:
+                    st.error(f"Error during Sentinel Hub connection test: {str(e)}")
+                    st.code(traceback.format_exc(), language="python")
+        
+        # Database connection test
+        if st.button("Test Database Connection", use_container_width=True):
+            with st.spinner("Testing database connection..."):
+                try:
+                    import traceback
+                    # Try to get a session and execute a simple query
+                    db = next(get_db())
+                    result = db.execute("SELECT 1").fetchone()
+                    
+                    if result and result[0] == 1:
+                        st.success("✅ Database connection successful!")
+                    else:
+                        st.error("❌ Database connection test failed.")
+                except Exception as e:
+                    st.error(f"Error during database connection test: {str(e)}")
+                    st.code(traceback.format_exc(), language="python")
+
 # Footer
 st.markdown("---")
 st.markdown(
