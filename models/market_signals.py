@@ -157,9 +157,47 @@ class MarketSignalModel:
             Dictionary with correlation results
         """
         # Resample NDVI data to daily frequency if needed
-        if ndvi_anomalies.index.freq != 'D':
-            ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
-        else:
+        try:
+            # Check if index is a DatetimeIndex
+            if isinstance(ndvi_anomalies.index, pd.DatetimeIndex):
+                # Check if freq attribute exists and is not 'D'
+                if hasattr(ndvi_anomalies.index, 'freq') and ndvi_anomalies.index.freq != 'D':
+                    ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                else:
+                    # Even without freq attribute, we can still try to resample
+                    try:
+                        ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                    except:
+                        ndvi_daily = ndvi_anomalies
+            else:
+                # If it's not a DatetimeIndex, try to convert it if it contains dates
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning("Indeks NDVI nie jest DatetimeIndex, konwertuję jeśli to możliwe")
+                
+                if 'date' in ndvi_anomalies.columns:
+                    # Convert to DatetimeIndex
+                    ndvi_anomalies = ndvi_anomalies.set_index('date')
+                    ndvi_anomalies.index = pd.to_datetime(ndvi_anomalies.index)
+                    ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                else:
+                    # For simplicity, use the data as is
+                    if len(ndvi_anomalies) > 10:
+                        logger.warning("Brak kolumny z datą, używam ostatnich 10 wierszy")
+                        ndvi_daily = ndvi_anomalies.iloc[-10:].copy()
+                    else:
+                        ndvi_daily = ndvi_anomalies.copy()
+                    # Create a simple date index (last N days)
+                    today = pd.Timestamp.today()
+                    dates = pd.date_range(end=today, periods=len(ndvi_daily), freq='D')
+                    ndvi_daily['date'] = dates
+                    ndvi_daily = ndvi_daily.set_index('date')
+                    logger.info(f"Używam ostatnich {len(ndvi_daily)} rekordów anomalii NDVI")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Błąd podczas przetwarzania danych NDVI: {e}")
+            # Fallback to original data
             ndvi_daily = ndvi_anomalies
         
         # Extract relevant columns
@@ -229,9 +267,47 @@ class MarketSignalModel:
             Dictionary with Granger causality test results
         """
         # Resample NDVI data to daily frequency if needed
-        if ndvi_anomalies.index.freq != 'D':
-            ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
-        else:
+        try:
+            # Check if index is a DatetimeIndex
+            if isinstance(ndvi_anomalies.index, pd.DatetimeIndex):
+                # Check if freq attribute exists and is not 'D'
+                if hasattr(ndvi_anomalies.index, 'freq') and ndvi_anomalies.index.freq != 'D':
+                    ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                else:
+                    # Even without freq attribute, we can still try to resample
+                    try:
+                        ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                    except:
+                        ndvi_daily = ndvi_anomalies
+            else:
+                # If it's not a DatetimeIndex, try to convert it if it contains dates
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning("Indeks NDVI nie jest DatetimeIndex, konwertuję jeśli to możliwe")
+                
+                if 'date' in ndvi_anomalies.columns:
+                    # Convert to DatetimeIndex
+                    ndvi_anomalies = ndvi_anomalies.set_index('date')
+                    ndvi_anomalies.index = pd.to_datetime(ndvi_anomalies.index)
+                    ndvi_daily = ndvi_anomalies.resample('D').mean().fillna(method='ffill')
+                else:
+                    # For simplicity, use the data as is
+                    if len(ndvi_anomalies) > 10:
+                        logger.warning("Brak kolumny z datą, używam ostatnich 10 wierszy")
+                        ndvi_daily = ndvi_anomalies.iloc[-10:].copy()
+                    else:
+                        ndvi_daily = ndvi_anomalies.copy()
+                    # Create a simple date index (last N days)
+                    today = pd.Timestamp.today()
+                    dates = pd.date_range(end=today, periods=len(ndvi_daily), freq='D')
+                    ndvi_daily['date'] = dates
+                    ndvi_daily = ndvi_daily.set_index('date')
+                    logger.info(f"Używam ostatnich {len(ndvi_daily)} rekordów anomalii NDVI")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Błąd podczas przetwarzania danych NDVI: {e}")
+            # Fallback to original data
             ndvi_daily = ndvi_anomalies
         
         # Extract relevant columns

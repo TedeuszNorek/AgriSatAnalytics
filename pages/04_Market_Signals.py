@@ -817,12 +817,14 @@ if selected_field:
                             metric_display = "NDVI % różnicy" 
                         
                         # Tłumaczenie wniosków
-                        if isinstance(result.get("conclusion"), str):
+                        if isinstance(result, dict) and "conclusion" in result and isinstance(result["conclusion"], str):
                             conclusion = result["conclusion"]
                             if "NDVI causes" in conclusion:
                                 conclusion = conclusion.replace("NDVI causes", "NDVI powoduje zmiany cen")
                             if "No causality" in conclusion:
                                 conclusion = "Brak przyczynowości"
+                        else:
+                            conclusion = "Brak danych o przyczynowości"
                             if "Price causes" in conclusion:
                                 conclusion = conclusion.replace("Price causes", "Ceny powodują zmiany")
                             if "Bidirectional" in conclusion:
