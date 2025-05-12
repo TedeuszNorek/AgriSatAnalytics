@@ -219,15 +219,50 @@ def parse_geojson(geojson_data: Union[str, Dict]) -> Tuple[Polygon, CRS]:
     polygon = shape(geometry)
     
     # Get CRS from the GeoJSON or use default WGS84
-    crs_string = geojson_data.get("crs", {}).get("properties", {}).get("name", "EPSG:4326")
-    crs = CRS.from_string(crs_string.split(":")[-1] if ":" in crs_string else "4326")
+    crs_string = "EPSG:4326"  # Default to WGS84
+    if isinstance(geojson_data, dict):
+        if "crs" in geojson_data and isinstance(geojson_data["crs"], dict):
+            if "properties" in geojson_data["crs"] and isinstance(geojson_data["crs"]["properties"], dict):
+                if "name" in geojson_data["crs"]["properties"]:
+                    crs_string = geojson_data["crs"]["properties"]["name"]
+    
+    # Handle different formats of CRS
+    try:
+        if hasattr(CRS, "from_string"):
+            # Używamy from_string jeśli dostępne
+            crs = CRS.from_string(crs_string.split(":")[-1] if ":" in crs_string else "4326")
+        elif hasattr(CRS, "from_epsg"):
+            # Alternatywne podejście używające from_epsg
+            epsg_code = crs_string.split(":")[-1] if ":" in crs_string else "4326"
+            crs = CRS.from_epsg(int(epsg_code))
+        else:
+            # Fallback do WGS84
+            crs = CRS.WGS84
+    except Exception as e:
+        # Jeśli coś pójdzie nie tak, używamy WGS84
+        logger.warning(f"Error parsing CRS: {str(e)}. Using WGS84 instead.")
+        crs = CRS.WGS84
     
     return polygon, crs
 
-def get_bbox_from_polygon(polygon: Polygon) -> BBox:
-    """Convert Shapely polygon to Sentinel Hub BBox."""
-    minx, miny, maxx, maxy = polygon.bounds
-    return BBox(bbox=[minx, miny, maxx, maxy], crs=CRS.WGS84)
+def get_bbox_from_polygon(polygon: Polygon):
+    """Convert Shapely polygon to bounding box coordinates.
+    
+    Returns a tuple (minx, miny, maxx, maxy) representing the bounds
+    of the polygon in WGS84 coordinates.
+    """
+    try:
+        # Try using sentinelhub BBox if available
+        minx, miny, maxx, maxy = polygon.bounds
+        if hasattr(BBox, "__init__") and "bbox" in BBox.__init__.__code__.co_varnames:
+            return BBox(bbox=[minx, miny, maxx, maxy], crs=CRS.WGS84)
+        else:
+            return (minx, miny, maxx, maxy)
+    except Exception as e:
+        # Fallback - return the bounds directly
+        logger.warning(f"Error creating BBox: {str(e)}. Returning bounds directly.")
+        minx, miny, maxx, maxy = polygon.bounds
+        return (minx, miny, maxx, maxy)
 
 def get_available_scenes(
     bbox: BBox, 
