@@ -46,6 +46,78 @@ st.markdown("# Yield Forecast")
 st.markdown("Predict crop yields based on satellite data and machine learning")
 st.markdown("---")
 
+# Funkcja do tworzenia przykładowych danych pól
+def create_sample_fields():
+    """Tworzy przykładowe dane pól do demonstracji"""
+    from sqlalchemy import inspect
+    from shapely.geometry import Polygon
+    from database import Field
+    
+    # Sprawdź czy mamy odpowiednie atrybuty w klasie Field
+    field_attrs = [c_attr.key for c_attr in inspect(Field).mapper.column_attrs]
+    
+    # Przykładowe dane
+    sample_fields = []
+    
+    # Pole 1: Przykładowe pole pszenicy w Polsce
+    field1 = Field()
+    field1.id = 1
+    field1.name = "Pole pszenicy - Mazowsze"
+    field1.center_lat = 52.2297
+    field1.center_lon = 21.0122
+    field1.area_hectares = 15.5
+    field1.crop_type = "Wheat"
+    if 'geojson' in field_attrs:
+        # Przykładowy GeoJSON dla prostokątnego pola
+        field1.geojson = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [21.0100, 52.2280],
+                    [21.0145, 52.2280],
+                    [21.0145, 52.2310],
+                    [21.0100, 52.2310],
+                    [21.0100, 52.2280]
+                ]]
+            }
+        }
+    if 'created_at' in field_attrs:
+        field1.created_at = datetime.datetime.now()
+    
+    # Pole 2: Przykładowe pole kukurydzy
+    field2 = Field()
+    field2.id = 2
+    field2.name = "Pole kukurydzy - Wielkopolska"
+    field2.center_lat = 52.4083
+    field2.center_lon = 16.9335
+    field2.area_hectares = 22.8
+    field2.crop_type = "Corn"
+    if 'geojson' in field_attrs:
+        # Przykładowy GeoJSON dla prostokątnego pola
+        field2.geojson = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [16.9300, 52.4060],
+                    [16.9370, 52.4060],
+                    [16.9370, 52.4105],
+                    [16.9300, 52.4105],
+                    [16.9300, 52.4060]
+                ]]
+            }
+        }
+    if 'created_at' in field_attrs:
+        field2.created_at = datetime.datetime.now()
+    
+    sample_fields.append(field1)
+    sample_fields.append(field2)
+    
+    return sample_fields
+
 # Get fields from database
 fields = []
 try:
@@ -55,8 +127,8 @@ except Exception as e:
     st.error(f"Error fetching fields from database: {str(e)}")
 
 if not fields:
-    st.warning("No fields found in the database. Please add fields in the Data Ingest page.")
-    st.stop()
+    st.warning("No fields found in the database. Using example fields for demonstration.")
+    fields = create_sample_fields()
 
 # Sidebar
 with st.sidebar:
