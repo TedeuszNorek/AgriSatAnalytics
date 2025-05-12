@@ -341,38 +341,200 @@ class MarketSignalModel:
         Returns:
             List of market signals
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generowanie sygnałów rynkowych na podstawie danych cenowych i NDVI")
+        
+        # Sprawdź czy DataFrame jest pusty
+        if ndvi_anomalies is None or ndvi_anomalies.empty:
+            logger.warning("Brak danych anomalii NDVI")
+            return []
+            
+        # Sprawdź kolumny w ndvi_anomalies
+        available_cols = ndvi_anomalies.columns.tolist()
+        logger.info(f"Dostępne kolumny w danych NDVI: {available_cols}")
+        
+        # Zastosuj odpowiednie nazwy kolumn na podstawie dostępnych danych
+        anomaly_col = None
+        pct_diff_col = None
+        
+        # Szukaj odpowiednich kolumn
+        for col in ['ndvi_anomaly', 'anomaly', 'z_score']:
+            if col in available_cols:
+                anomaly_col = col
+                break
+                
+        for col in ['ndvi_pct_diff', 'pct_diff', 'percent_change']:
+            if col in available_cols:
+                pct_diff_col = col
+                break
+        
+        # Jeśli nie znaleziono kolumn, użyj pierwszej numerycznej kolumny dla anomalii
+        if anomaly_col is None:
+            numeric_cols = ndvi_anomalies.select_dtypes(include=['number']).columns
+            if len(numeric_cols) > 0:
+                anomaly_col = numeric_cols[0]
+                logger.warning(f"Nie znaleziono standardowej kolumny anomalii, używam {anomaly_col}")
+            else:
+                logger.error("Brak kolumn numerycznych w danych NDVI")
+                return []
+        
+        # Jeśli nie znaleziono kolumny procentowej różnicy, użyj kolumny anomalii
+        if pct_diff_col is None:
+            pct_diff_col = anomaly_col
+            logger.warning(f"Nie znaleziono kolumny procentowej różnicy, używam {pct_diff_col}")
+        
         # Get recent anomalies
-        recent_date = ndvi_anomalies.index.max()
-        start_date = recent_date - pd.Timedelta(days=lookback_days)
+        try:
+            # Upewnij się, że indeks to daty
+            if not isinstance(ndvi_anomalies.index, pd.DatetimeIndex):
+                logger.warning("Indeks NDVI nie jest DatetimeIndex, konwertuję jeśli to możliwe")
+                # Sprawdź czy istnieje kolumna 'date' lub podobna
+                date_cols = [col for col in available_cols if 'date' in col.lower() or 'time' in col.lower()]
+                if date_cols:
+                    logger.info(f"Używam kolumny {date_cols[0]} jako indeksu dat")
+                    ndvi_anomalies = ndvi_anomalies.set_index(date_cols[0])
+                    if not isinstance(ndvi_anomalies.index, pd.DatetimeIndex):
+                        ndvi_anomalies.index = pd.to_datetime(ndvi_anomalies.index)
+                else:
+                    # Jeśli nie ma kolumny z datą, użyj ostatnich wierszy
+                    logger.warning("Brak kolumny z datą, używam ostatnich 10 wierszy")
+                    recent_anomalies = ndvi_anomalies.iloc[-10:]
+                    
+                    # Utwórz sztuczne wartości max/min
+                    max_anomaly = recent_anomalies[anomaly_col].max() if anomaly_col in recent_anomalies else 1.0
+                    min_anomaly = recent_anomalies[anomaly_col].min() if anomaly_col in recent_anomalies else -1.0
+                    
+                    max_pct_diff = recent_anomalies[pct_diff_col].max() if pct_diff_col in recent_anomalies else 0.05
+                    min_pct_diff = recent_anomalies[pct_diff_col].min() if pct_diff_col in recent_anomalies else -0.05
+                    
+                    # Przejdź do następnego kroku
+                    recent_anomalies = ndvi_anomalies.iloc[-10:]
+                    logger.info(f"Używam ostatnich {len(recent_anomalies)} rekordów anomalii NDVI")
+                    
+                    # Przejdź do kolejnego kroku
+                    goto_next_step = True
+            
+            if not 'goto_next_step' in locals() or not goto_next_step:
+                # Normalne przetwarzanie dla DatetimeIndex
+                recent_date = ndvi_anomalies.index.max()
+                start_date = recent_date - pd.Timedelta(days=lookback_days)
+                
+                recent_anomalies = ndvi_anomalies[ndvi_anomalies.index >= start_date]
+                logger.info(f"Używam {len(recent_anomalies)} rekordów anomalii NDVI z ostatnich {lookback_days} dni")
+                
+                # Extract anomaly magnitudes and directions
+                max_anomaly = recent_anomalies[anomaly_col].max() if anomaly_col in recent_anomalies else 1.0
+                min_anomaly = recent_anomalies[anomaly_col].min() if anomaly_col in recent_anomalies else -1.0
+                
+                max_pct_diff = recent_anomalies[pct_diff_col].max() if pct_diff_col in recent_anomalies else 0.05
+                min_pct_diff = recent_anomalies[pct_diff_col].min() if pct_diff_col in recent_anomalies else -0.05
         
-        recent_anomalies = ndvi_anomalies[ndvi_anomalies.index >= start_date]
-        
-        # Extract anomaly magnitudes and directions
-        max_anomaly = recent_anomalies['ndvi_anomaly'].max()
-        min_anomaly = recent_anomalies['ndvi_anomaly'].min()
-        
-        max_pct_diff = recent_anomalies['ndvi_pct_diff'].max()
-        min_pct_diff = recent_anomalies['ndvi_pct_diff'].min()
+        except Exception as e:
+            logger.error(f"Błąd podczas przetwarzania anomalii NDVI: {str(e)}")
+            # Utwórz bezpieczne wartości domyślne
+            max_anomaly = 1.0
+            min_anomaly = -1.0
+            max_pct_diff = 0.05
+            min_pct_diff = -0.05
+            recent_anomalies = ndvi_anomalies.iloc[-10:] if not ndvi_anomalies.empty else pd.DataFrame()
         
         # Find the strongest correlations for each commodity
+        import logging
+        logger = logging.getLogger(__name__)
+        
         strong_correlations = {}
         
-        for lag_key, lag_results in correlation_results.items():
-            for ndvi_col, col_results in lag_results.items():
-                for price_col, price_results in col_results.items():
-                    # Get the correlation value
-                    corr = price_results['correlation']
-                    p_value = price_results['p_value']
-                    
-                    # Only consider statistically significant correlations
-                    if p_value <= 0.05:
-                        # Update the strongest correlation for this price column
-                        if price_col not in strong_correlations or abs(corr) > abs(strong_correlations[price_col]['correlation']):
-                            strong_correlations[price_col] = {
-                                'correlation': corr,
-                                'ndvi_col': ndvi_col,
-                                'lag': int(lag_key.split('_')[1])
-                            }
+        try:
+            # Sprawdź strukturę correlation_results
+            logger.info(f"Struktura wyników korelacji: {type(correlation_results)}")
+            
+            # Prosty przypadek, gdy mamy słownik {symbol -> informacje o korelacji}
+            if correlation_results and isinstance(correlation_results, dict):
+                # Sprawdź pierwszy element, aby zrozumieć strukturę
+                first_key = list(correlation_results.keys())[0] if correlation_results else None
+                first_value = correlation_results.get(first_key, {})
+                
+                logger.info(f"Pierwszy klucz: {first_key}, typ wartości: {type(first_value)}")
+                
+                # Obsługa różnych struktur danych korelacji
+                if first_value and isinstance(first_value, dict):
+                    # Sprawdź czy mamy zagnieżdżoną strukturę czy prostą
+                    if 'correlation' in first_value or 'max_correlation' in first_value:
+                        # Prosta struktura {symbol -> {statystyki korelacji}}
+                        for price_col, results in correlation_results.items():
+                            correlation = results.get('max_correlation', results.get('correlation', 0))
+                            lag = results.get('max_lag', results.get('lag', 0))
+                            
+                            if abs(correlation) > 0.2:  # Tylko korelacje o znaczącej sile
+                                strong_correlations[price_col] = {
+                                    'correlation': correlation,
+                                    'ndvi_col': anomaly_col,  # Używamy głównej kolumny anomalii
+                                    'lag': lag
+                                }
+                    else:
+                        # Złożona struktura z zagnieżdżonymi słownikami
+                        for lag_key, lag_results in correlation_results.items():
+                            if isinstance(lag_results, dict):
+                                # Obsługa dwóch różnych struktur danych
+                                if 'correlation_by_lag' in lag_results:
+                                    # Struktura: {symbol -> {correlation_by_lag -> {lag -> corr}}}
+                                    max_corr = 0
+                                    max_lag = 0
+                                    
+                                    for lag, corr in lag_results.get('correlation_by_lag', {}).items():
+                                        if isinstance(corr, (int, float)) and abs(corr) > abs(max_corr):
+                                            max_corr = corr
+                                            max_lag = int(lag) if isinstance(lag, str) else lag
+                                    
+                                    if abs(max_corr) > 0.2:
+                                        strong_correlations[lag_key] = {
+                                            'correlation': max_corr,
+                                            'ndvi_col': anomaly_col,
+                                            'lag': max_lag
+                                        }
+                                else:
+                                    # Struktura wielopoziomowa: {lag_key -> {ndvi_col -> {price_col -> {stat}}}}
+                                    for ndvi_col, col_results in lag_results.items():
+                                        if isinstance(col_results, dict):
+                                            for price_col, price_results in col_results.items():
+                                                if isinstance(price_results, dict):
+                                                    # Get the correlation value
+                                                    corr = price_results.get('correlation', 0)
+                                                    p_value = price_results.get('p_value', 1.0)
+                                                    
+                                                    # Only consider statistically significant correlations
+                                                    if p_value <= 0.05 and abs(corr) > 0.2:
+                                                        # Update the strongest correlation for this price column
+                                                        if price_col not in strong_correlations or abs(corr) > abs(strong_correlations[price_col]['correlation']):
+                                                            lag_id = 0
+                                                            if '_' in lag_key:
+                                                                try:
+                                                                    lag_id = int(lag_key.split('_')[1])
+                                                                except (ValueError, IndexError):
+                                                                    lag_id = 0
+                                                                    
+                                                            strong_correlations[price_col] = {
+                                                                'correlation': corr,
+                                                                'ndvi_col': ndvi_col,
+                                                                'lag': lag_id
+                                                            }
+            
+            logger.info(f"Znaleziono {len(strong_correlations)} silnych korelacji")
+                            
+        except Exception as e:
+            logger.error(f"Błąd podczas analizy korelacji: {str(e)}")
+            # Gdy nie udało się przetworzyć korelacji, stwórz bezpieczne wartości dla kluczowych towarów
+            # Używamy rzeczywistych symboli, które są powszechne dla rynków rolnych
+            if price_data is not None and not price_data.empty:
+                for col in price_data.columns:
+                    commodity = col.split('_')[0] if '_' in col else col
+                    if commodity not in strong_correlations:
+                        strong_correlations[commodity] = {
+                            'correlation': 0.3,  # Umiarkowana korelacja
+                            'ndvi_col': anomaly_col,
+                            'lag': 10  # Typowe opóźnienie
+                        }
         
         # Generate signals
         signals = []

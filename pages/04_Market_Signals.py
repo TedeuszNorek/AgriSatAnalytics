@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
-import datetime
+from datetime import datetime, timedelta
 import logging
 import asyncio
 import uuid
@@ -151,44 +151,85 @@ if selected_field:
                 st.session_state.ndvi_time_series = ndvi_time_series
     
     # Main content
-    st.header(f"Market Analysis for {selected_field}")
+    st.header(f"Analiza rynkowa dla pola: {selected_field}")
+    
+    # Przewodnik krok po kroku
+    st.markdown("""
+    ## Krok po kroku analiza rynkowa
+    
+    1. **Wybierz towary rolne** - Zaznacz surowce, które chcesz analizować (np. pszenica, kukurydza)
+    2. **Wybierz okres analizy** - Im dłuższy okres, tym dokładniejsza analiza trendów długoterminowych
+    3. **Wygeneruj sygnały rynkowe** - System przeanalizuje korelacje między danymi satelitarnymi a cenami
+    4. **Przejrzyj wyniki** - Sprawdź wykresy, korelacje i rekomendacje handlowe
+    
+    System analizuje anomalie w indeksie wegetacji (NDVI) dla wybranych upraw i szuka korelacji z cenami 
+    towarów rolnych. Dzięki temu możesz przewidzieć zmiany cen, zanim zostaną zauważone przez rynek.
+    """)
     
     # Create tabs for different analysis views
-    tab1, tab2, tab3 = st.tabs(["Market Signals", "Price Correlation", "Trading Strategy"])
+    tab1, tab2, tab3 = st.tabs(["Sygnały rynkowe", "Korelacja cen", "Strategia handlowa"])
     
     with tab1:
-        st.subheader("Market Signals from Satellite Data")
+        st.subheader("Krok 1: Wybierz towary do analizy")
+        
+        # Rozszerzamy listę towarów rolnych
+        commodities_list = [
+            "ZW=F (Pszenica)", 
+            "ZC=F (Kukurydza)", 
+            "ZS=F (Soja)", 
+            "ZO=F (Owies)", 
+            "ZR=F (Ryż)",
+            "ZL=F (Olej sojowy)",
+            "ZM=F (Mączka sojowa)",
+            "KE=F (KC-Kawa)",
+            "SB=F (Cukier)",
+            "CC=F (Kakao)",
+            "CT=F (Bawełna)",
+            "OJ=F (Sok pomarańczowy)",
+            "LBS=F (Drewno)"
+        ]
         
         # Select commodities to analyze
         commodities = st.multiselect(
-            "Select Commodities",
-            options=["ZW=F (Wheat)", "ZC=F (Corn)", "ZS=F (Soybean)", "ZO=F (Oats)", "ZR=F (Rice)"],
-            default=["ZW=F (Wheat)", "ZC=F (Corn)", "ZS=F (Soybean)"],
-            help="Select commodities to analyze for correlation with NDVI anomalies"
+            "Wybierz towary rolne do analizy:",
+            options=commodities_list,
+            default=[commodities_list[0], commodities_list[1], commodities_list[2]],
+            help="Wybierz surowce do analizy korelacji z anomaliami NDVI"
         )
         
         # Extract just the ticker symbols
         commodity_symbols = [c.split(" ")[0] for c in commodities]
         
+        st.subheader("Krok 2: Wybierz okres analizy")
+        
         # Period selection
         lookback_period = st.selectbox(
-            "Data Period",
-            options=["6 months", "1 year", "2 years"],
+            "Okres analizy danych historycznych:",
+            options=["6 miesięcy", "1 rok", "2 lata"],
             index=1,
-            help="Historical period to analyze"
+            help="Im dłuższy okres, tym dokładniejsza analiza trendów długoterminowych"
         )
         
         # Convert to yfinance format
         period_mapping = {
-            "6 months": "6mo",
-            "1 year": "1y",
-            "2 years": "2y"
+            "6 miesięcy": "6mo",
+            "1 rok": "1y",
+            "2 lata": "2y"
         }
         period = period_mapping[lookback_period]
         
+        # Krok 3: Wygeneruj sygnały
+        st.subheader("Krok 3: Wygeneruj sygnały rynkowe")
+        
+        st.markdown("""
+        Po wygenerowaniu sygnałów rynkowych, system dokona analizy korelacji między danymi 
+        satelitarnymi (NDVI) a cenami wybranych towarów rolnych. Algorytm wykryje anomalie 
+        w indeksie wegetacji i wskaże potencjalne możliwości inwestycyjne.
+        """)
+        
         # Button to run analysis
-        if st.button("Generate Market Signals"):
-            with st.spinner("Fetching commodity prices and analyzing NDVI correlations..."):
+        if st.button("Generuj sygnały rynkowe"):
+            with st.spinner("Pobieram dane cenowe wybranych towarów i analizuję korelacje z danymi NDVI..."):
                 try:
                     # Initialize MarketSignalModel if not already done
                     if "market_signals_model" not in st.session_state or st.session_state.market_signals_model is None:
