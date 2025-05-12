@@ -373,9 +373,9 @@ def fetch_sentinel_data(
                 }
             ],
             responses=[
-                {"identifier": "RGB", "format": MimeType.PNG},
-                {"identifier": "NDVI", "format": MimeType.TIFF},
-                {"identifier": "SCL", "format": MimeType.TIFF}
+                {"identifier": "RGB", "format": {"type": "image/png"}},
+                {"identifier": "NDVI", "format": {"type": "image/tiff"}},
+                {"identifier": "SCL", "format": {"type": "image/tiff"}}
             ],
             bbox=bbox,
             size=(width, height),

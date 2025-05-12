@@ -31,4 +31,5 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "alembic>=1.15.2",
     "trafilatura>=2.0.0",
+    "seaborn>=0.13.2",
 ]

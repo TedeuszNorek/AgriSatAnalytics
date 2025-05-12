@@ -181,7 +181,7 @@ request = SentinelHubRequest(
         )
     ],
     responses=[
-        SentinelHubRequest.output_response('default', MimeType.TIFF)
+        {"identifier": "default", "format": {"type": "image/tiff"}}
     ],
     bbox=bbox,
     size=dims,
