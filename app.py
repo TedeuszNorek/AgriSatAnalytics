@@ -81,6 +81,16 @@ st.markdown("""
         border-radius: 5px;
         margin-bottom: 1rem;
     }
+    /* Status section styling */
+    .success-box h3, .error-box h3 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+    .success-box p, .error-box p {
+        margin-bottom: 0;
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -89,7 +99,7 @@ st.markdown(f"<h1 class='main-header'>{APP_NAME}</h1>", unsafe_allow_html=True)
 st.markdown(f"<p>{APP_DESCRIPTION}</p>", unsafe_allow_html=True)
 st.markdown(f"<p><small>Version {APP_VERSION}</small></p>", unsafe_allow_html=True)
 
-# Check Sentinel Hub credentials
+# Check Sentinel Hub credentials and display satellite connection status
 credentials_valid = False
 if SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET:
     credentials_valid = check_sentinel_hub_credentials(
@@ -97,24 +107,71 @@ if SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET:
         SENTINEL_HUB_CLIENT_SECRET
     )
 
-if credentials_valid:
-    st.markdown(
-        "<div class='success-box'>✅ Sentinel Hub credentials are valid.</div>",
-        unsafe_allow_html=True
-    )
-else:
-    st.markdown(
-        "<div class='warning-box'>⚠️ Sentinel Hub credentials are not set or invalid.</div>",
-        unsafe_allow_html=True
-    )
+# Create satellite connection status section
+st.markdown("<h2 class='sub-header'>Satellite Connection Status</h2>", unsafe_allow_html=True)
+
+# Create two columns for the status information
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    # Data source information
+    st.markdown("### Data Sources")
     
+    # Sentinel-2 information
     st.markdown("""
-    To use the full functionality of Agro Insight, you need to set up your Sentinel Hub credentials:
-    
-    1. Create a free account at [Sentinel Hub](https://www.sentinel-hub.com/)
-    2. Generate OAuth credentials in your dashboard
-    3. Add the credentials to the application's environment variables
+    **Sentinel-2 Optical Satellite:**
+    - Resolution: 10m - 20m per pixel
+    - Data Products: NDVI, EVI, Surface Reflectance, RGB imagery
+    - Frequency: Images refreshed every **5 days** (on average)
+    - Cloud Detection: Automatic cloud masking applied
     """)
+    
+    # Sentinel-1 information
+    st.markdown("""
+    **Sentinel-1 Radar Satellite:**
+    - Resolution: 10m per pixel
+    - Data Products: Surface backscatter, soil moisture estimates
+    - Frequency: Images refreshed every **6 days** (on average)
+    - All-weather capability: Operates through clouds
+    """)
+
+with col2:
+    # Connection status
+    st.markdown("### Connection Status")
+    
+    if credentials_valid:
+        st.markdown(
+            "<div class='success-box'><h3>✅ CONNECTED</h3><p>Satellite data access is <strong>LIVE</strong></p></div>",
+            unsafe_allow_html=True
+        )
+        
+        # Add a recent update timestamp
+        st.markdown(f"**Last Status Check:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        
+        # Add data refresh information
+        next_refresh = (datetime.datetime.now() + datetime.timedelta(days=5)).strftime('%Y-%m-%d')
+        st.markdown(f"**Next Data Refresh:** ~{next_refresh}")
+        
+    else:
+        st.markdown(
+            "<div class='error-box'><h3>❌ DISCONNECTED</h3><p>Satellite data access is <strong>OFFLINE</strong></p></div>",
+            unsafe_allow_html=True
+        )
+        
+        st.markdown("""
+        **Connection Error:** Unable to authenticate with Sentinel Hub.
+        
+        To enable live satellite data:
+        1. Create an account at [Sentinel Hub](https://www.sentinel-hub.com/)
+        2. Generate OAuth credentials in your dashboard
+        3. Add credentials to environment variables
+        """)
+        
+        # Add option to use test data
+        st.warning("⚠️ Using mock data for demonstration purpose.")
+
+# Display visual separator
+st.markdown("---")
 
 # Main content
 st.markdown("<h2 class='sub-header'>Dashboard Overview</h2>", unsafe_allow_html=True)

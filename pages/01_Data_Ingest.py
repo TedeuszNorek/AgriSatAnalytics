@@ -17,7 +17,7 @@ import folium
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from streamlit_folium import folium_static
-from folium.plugins import Draw, FeatureGroup
+from folium.plugins import Draw
 from shapely.geometry import Polygon, shape
 from streamlit.components.v1 import html
 
