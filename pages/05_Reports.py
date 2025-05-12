@@ -395,7 +395,66 @@ def generate_expert_commodity_report(field_name, crop_type, data, time_period="K
         forecast_direction = "stabilizację z lekkim wzrostem"
         market_recommendation = "Monitoruj rynek - brak wyraźnych sygnałów do agresywnych działań."
     
-    # Nagłówek raportu
+    # Przygotowanie tekstu dla warunków pogodowych
+    if ndvi_trend == "rosnącą":
+        weather_conditions = "korzystne"
+    elif ndvi_trend == "malejącą":
+        weather_conditions = "niekorzystne"
+    else:
+        weather_conditions = "umiarkowane"
+    
+    # Przygotowanie tekstu dla globalnych zapasów
+    if ndvi_trend == "rosnącą":
+        global_stocks = "wysokim"
+    elif ndvi_trend == "malejącą":
+        global_stocks = "niskim"
+    else:
+        global_stocks = "przeciętnym"
+    
+    # Przygotowanie tekstu dla tendencji eksportowych
+    if ndvi_trend == "malejącą":
+        export_trends = "Zwiększony"
+    elif ndvi_trend == "rosnącą":
+        export_trends = "Zmniejszony"
+    else:
+        export_trends = "Stabilny"
+    
+    # Przygotowanie uzasadnienia prognozy
+    if ndvi_trend == "rosnącą":
+        forecast_rationale = "Dobre warunki wzrostu sugerują wyższe zbiory, co może prowadzić do zwiększonej podaży i spadku cen o około 5%."
+    elif ndvi_trend == "malejącą":
+        forecast_rationale = "Gorsze warunki wzrostu mogą skutkować niższymi zbiorami, prowadząc do ograniczonej podaży i wzrostu cen o około 7%."
+    else:
+        forecast_rationale = "Obecne warunki nie wskazują na znaczące zmiany w zbiorach, spodziewamy się lekkiego wzrostu cen o 2% zgodnie z ogólną inflacją w sektorze rolnym."
+    
+    # Przygotowanie sugerowanych działań
+    if ndvi_trend == "rosnącą":
+        suggested_actions = f"- Rozważ sprzedaż kontraktów na {price_forecast:.2f} EUR/t\n- Zabezpiecz co najmniej 30% przewidywanych zbiorów\n- Monitoruj prognozy meteorologiczne pod kątem zmian"
+    elif ndvi_trend == "malejącą":
+        suggested_actions = f"- Rozważ zakup kontraktów na {current_price:.2f} EUR/t\n- Monitoruj sytuację podażową w innych regionach\n- Śledź raporty o stanie upraw w głównych krajach producenckich"
+    else:
+        suggested_actions = "- Rozłóż sprzedaż w czasie zamiast jednorazowej transakcji\n- Monitoruj kluczowe wskaźniki rynkowe jak NDVI, stan magazynów i raporty USDA\n- Przygotuj strategię na wypadek wzrostu zmienności"
+    
+    # Przygotowanie daty najbliższego raportu USDA
+    if today.day < 12:
+        next_report_date = today.replace(day=12)
+    else:
+        if today.month < 12:
+            next_report_date = today.replace(day=12, month=today.month+1)
+        else:
+            next_report_date = today.replace(day=12, month=1, year=today.year+1)
+    
+    next_report_date_formatted = next_report_date.strftime('%d.%m.%Y')
+    
+    # Przygotowanie terminu żniw
+    if crop_type in ["Wheat", "Barley"]:
+        harvest_time = f"lipiec-sierpień {current_year}"
+    elif crop_type in ["Corn", "Soybean"]:
+        harvest_time = f"wrzesień-październik {current_year}"
+    else:
+        harvest_time = f"wrzesień {current_year}"
+    
+    # Tworzenie raportu
     report = f"""# Ekspercki Raport Rynkowy: {crop_pl}
 
 **Wygenerowano dnia:** {today.strftime('%d.%m.%Y')}  
@@ -417,25 +476,17 @@ Aktualna cena kontraktów terminowych ({commodity_symbols.get(crop_type, "N/D")}
 
 1. **Kondycja upraw** - Wskaźnik NDVI pokazuje {ndvi_trend} tendencję w ostatnim okresie, co wskazuje na {ndvi_trend} dynamikę wzrostu roślin.
 
-2. **Warunki pogodowe** - Ostatnie dane meteorologiczne wskazują na {
-    "korzystne" if ndvi_trend == "rosnącą" else 
-    "niekorzystne" if ndvi_trend == "malejącą" else 
-    "umiarkowane"
-} warunki dla rozwoju {crop_pl}.
+2. **Warunki pogodowe** - Ostatnie dane meteorologiczne wskazują na {weather_conditions} warunki dla rozwoju {crop_pl}.
 
-3. **Globalne zapasy** - Światowe zapasy {crop_pl} są obecnie na {"wysokim" if ndvi_trend == "rosnącą" else "niskim" if ndvi_trend == "malejącą" else "przeciętnym"} poziomie.
+3. **Globalne zapasy** - Światowe zapasy {crop_pl} są obecnie na {global_stocks} poziomie.
 
-4. **Tendencje eksportowe** - {"Zwiększony" if ndvi_trend == "malejącą" else "Zmniejszony" if ndvi_trend == "rosnącą" else "Stabilny"} popyt eksportowy z kluczowych regionów importujących.
+4. **Tendencje eksportowe** - {export_trends} popyt eksportowy z kluczowych regionów importujących.
 
 ### Prognoza cenowa
 
 Spodziewana cena {crop_pl} na koniec okresu prognozy: **{price_forecast:.2f} EUR/t**
 
-Uzasadnienie: {
-    f"Dobre warunki wzrostu sugerują wyższe zbiory, co może prowadzić do zwiększonej podaży i spadku cen o około 5%." if ndvi_trend == "rosnącą" else
-    f"Gorsze warunki wzrostu mogą skutkować niższymi zbiorami, prowadząc do ograniczonej podaży i wzrostu cen o około 7%." if ndvi_trend == "malejącą" else
-    f"Obecne warunki nie wskazują na znaczące zmiany w zbiorach, spodziewamy się lekkiego wzrostu cen o 2% zgodnie z ogólną inflacją w sektorze rolnym."
-}
+Uzasadnienie: {forecast_rationale}
 
 ## Rekomendacje handlowe
 
@@ -443,15 +494,13 @@ Uzasadnienie: {
 
 ### Sugerowane działania:
 
-{"- Rozważ sprzedaż kontraktów na {price_forecast:.2f} EUR/t\n- Zabezpiecz co najmniej 30% przewidywanych zbiorów\n- Monitoruj prognozy meteorologiczne pod kątem zmian" if ndvi_trend == "rosnącą" else
- "- Rozważ zakup kontraktów na {current_price:.2f} EUR/t\n- Monitoruj sytuację podażową w innych regionach\n- Śledź raporty o stanie upraw w głównych krajach producenckich" if ndvi_trend == "malejącą" else
- "- Rozłóż sprzedaż w czasie zamiast jednorazowej transakcji\n- Monitoruj kluczowe wskaźniki rynkowe jak NDVI, stan magazynów i raporty USDA\n- Przygotuj strategię na wypadek wzrostu zmienności"}
+{suggested_actions}
 
 ## Kluczowe terminy do obserwacji
 
-1. **Raporty USDA WASDE** - najbliższy raport: {(today.replace(day=12) if today.day < 12 else today.replace(day=12, month=today.month+1 if today.month < 12 else 1, year=today.year+1 if today.month == 12 else today.year)).strftime('%d.%m.%Y')}
+1. **Raporty USDA WASDE** - najbliższy raport: {next_report_date_formatted}
 2. **Raport MARS UE** - publikacja: koniec miesiąca
-3. **Termin żniw** - {f"lipiec-sierpień {current_year}" if crop_type in ["Wheat", "Barley"] else f"wrzesień-październik {current_year}" if crop_type in ["Corn", "Soybean"] else f"wrzesień {current_year}"}
+3. **Termin żniw** - {harvest_time}
 
 ---
 
