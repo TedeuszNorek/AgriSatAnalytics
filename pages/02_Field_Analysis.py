@@ -1,688 +1,506 @@
+"""
+Field Analysis - Analyze satellite data for fields
+"""
 import os
+import json
+import logging
+import datetime
+import traceback
+from typing import Dict, List, Any, Optional, Tuple
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json
-import datetime
-import logging
-import asyncio
-import uuid
-import glob
-from pathlib import Path
 import folium
-from folium.plugins import HeatMap
-from streamlit_folium import folium_static
-import plotly.express as px
-import plotly.graph_objects as go
-from shapely.geometry import shape, Polygon, box
-import geopandas as gpd
 import matplotlib.pyplot as plt
-import rasterio
-from rasterio.transform import from_bounds
+from streamlit_folium import folium_static
+from matplotlib.figure import Figure
 
+from database import get_db, Field, SatelliteImage, TimeSeries
 from utils.data_access import (
-    parse_geojson, 
-    get_bbox_from_polygon, 
-    get_available_scenes,
+    get_sentinel_hub_config, 
     fetch_sentinel_data,
-    get_country_boundary,
+    get_bbox_from_polygon,
+    parse_geojson,
     save_to_geotiff,
     save_stac_metadata
 )
 from utils.processing import (
-    calculate_vegetation_indices,
+    calculate_ndvi,
+    calculate_evi,
     calculate_zonal_statistics,
+    extract_time_series,
     detect_anomalies,
-    detect_drought,
-    calculate_rolling_variance,
-    perform_pca_clustering
+    apply_cloud_mask,
+    save_processed_data
 )
 from utils.visualization import (
-    plot_ndvi_map,
-    plot_interactive_ndvi_map,
-    plot_time_series,
-    plot_drought_detection,
-    create_folium_map,
-    add_geojson_to_map,
-    overlay_raster_on_map
+    create_index_map,
+    create_multi_temporal_figure,
+    create_anomaly_figure,
+    create_histogram_figure,
+    fig_to_base64
+)
+from config import (
+    SENTINEL_HUB_CLIENT_ID,
+    SENTINEL_HUB_CLIENT_SECRET,
+    SATELLITE_INDICES,
+    DEFAULT_START_DATE,
+    DEFAULT_END_DATE,
+    DEFAULT_MAX_CLOUD_COVERAGE,
+    PROCESSED_DATA_DIR,
+    APP_NAME
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Page config
+# Configure page
 st.set_page_config(
-    page_title="Field Analysis - Agro Insight",
-    page_icon="🔍",
+    page_title=f"{APP_NAME} - Field Analysis",
+    page_icon="🛰️",
     layout="wide"
 )
 
-# Initialize session state variables if not already set
-if "selected_field" not in st.session_state:
-    st.session_state.selected_field = None
-if "available_fields" not in st.session_state:
-    st.session_state.available_fields = []
-if "field_geojson" not in st.session_state:
-    st.session_state.field_geojson = None
-if "field_statistics" not in st.session_state:
-    st.session_state.field_statistics = {}
-if "ndvi_time_series" not in st.session_state:
-    st.session_state.ndvi_time_series = {}
-
-# Helper function to load available fields
-def load_available_fields():
-    """Load available fields from processed data directory"""
-    data_dir = Path("./data/geotiff")
-    if not data_dir.exists():
-        return []
-    
-    # Get unique field names from filenames
-    field_names = set()
-    for file in data_dir.glob("*.tif"):
-        # Extract field name from filename (format: fieldname_index_sceneid.tif)
-        parts = file.stem.split('_')
-        if len(parts) >= 2:
-            field_name = parts[0]
-            field_names.add(field_name)
-    
-    return list(field_names)
-
-# Helper function to load field data
-def load_field_data(field_name):
-    """Load all data for a specific field"""
-    data_dir = Path("./data/geotiff")
-    
-    # Find all files for this field
-    field_files = list(data_dir.glob(f"{field_name}_*.tif"))
-    
-    if not field_files:
-        return None
-    
-    # Process each file to extract data and metadata
-    field_data = []
-    
-    for file in field_files:
-        try:
-            # Extract index type and date from filename
-            filename_parts = file.stem.split('_')
-            if len(filename_parts) >= 3:
-                index_type = filename_parts[1]  # e.g., NDVI, EVI
-                scene_id = filename_parts[2]
-                
-                # Read raster data
-                with rasterio.open(file) as src:
-                    # Read first band
-                    raster_data = src.read(1)
-                    
-                    # Get metadata
-                    metadata = src.tags()
-                    
-                    # Try to extract date from metadata
-                    date_str = None
-                    if 'time_interval' in metadata:
-                        try:
-                            time_interval = json.loads(metadata['time_interval'].replace("'", '"'))
-                            date_str = time_interval[0].split('T')[0]  # Extract just the date part
-                        except:
-                            # If parsing fails, use the scene ID or a default date
-                            date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                    
-                    # Calculate basic statistics
-                    valid_data = raster_data[~np.isnan(raster_data)]
-                    if len(valid_data) > 0:
-                        stats = {
-                            "min": float(np.nanmin(valid_data)),
-                            "max": float(np.nanmax(valid_data)),
-                            "mean": float(np.nanmean(valid_data)),
-                            "std": float(np.nanstd(valid_data))
-                        }
-                    else:
-                        stats = {"min": 0, "max": 0, "mean": 0, "std": 0}
-                    
-                    # Add to field data
-                    field_data.append({
-                        "filename": str(file),
-                        "index_type": index_type,
-                        "scene_id": scene_id,
-                        "date": date_str,
-                        "raster_data": raster_data,
-                        "metadata": metadata,
-                        "statistics": stats,
-                        "bounds": src.bounds,
-                        "transform": src.transform
-                    })
-        except Exception as e:
-            logger.error(f"Error loading field data from {file}: {e}")
-    
-    # Sort by date
-    field_data.sort(key=lambda x: x.get("date", ""))
-    
-    return field_data
-
-def extract_time_series(field_data, index_type="NDVI"):
-    """Extract time series data for a specific index type"""
-    time_series = {}
-    
-    for data in field_data:
-        if data["index_type"] == index_type and data["date"]:
-            # Calculate mean value for the entire raster
-            mean_value = data["statistics"]["mean"]
-            time_series[data["date"]] = mean_value
-    
-    return time_series
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Header
-st.title("🔍 Field Analysis")
-st.markdown("""
-Analyze satellite data for agricultural fields. Monitor vegetation indices, detect anomalies, and track field health over time.
-""")
-
-# Load available fields
-available_fields = load_available_fields()
-if not available_fields and "available_fields" in st.session_state:
-    available_fields = st.session_state.available_fields
-
-# Field selection
-st.sidebar.header("Field Selection")
-selected_field = st.sidebar.selectbox(
-    "Select Field", 
-    options=available_fields,
-    index=0 if available_fields else None,
-    help="Choose a field to analyze"
-)
-
-if selected_field:
-    st.session_state.selected_field = selected_field
-    
-    # Load field data
-    with st.spinner(f"Loading data for {selected_field}..."):
-        field_data = load_field_data(selected_field)
-    
-    if field_data:
-        # Extract time series data for different indices
-        ndvi_time_series = extract_time_series(field_data, "NDVI")
-        evi_time_series = extract_time_series(field_data, "EVI")
-        ndwi_time_series = extract_time_series(field_data, "NDWI")
-        
-        # Save to session state for use in other pages
-        st.session_state.ndvi_time_series = ndvi_time_series
-        
-        # Display field overview
-        st.header(f"Field Overview: {selected_field}")
-        
-        # Create tabs for different analysis views
-        tab1, tab2, tab3, tab4 = st.tabs(["Vegetation Indices", "Time Series Analysis", "Anomaly Detection", "Advanced Analytics"])
-        
-        with tab1:
-            st.subheader("Latest Vegetation Indices")
-            
-            # Find the latest data for each index
-            latest_ndvi = next((data for data in reversed(field_data) if data["index_type"] == "NDVI"), None)
-            latest_evi = next((data for data in reversed(field_data) if data["index_type"] == "EVI"), None)
-            latest_ndwi = next((data for data in reversed(field_data) if data["index_type"] == "NDWI"), None)
-            
-            # Display in three columns
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("### NDVI")
-                st.markdown("*Normalized Difference Vegetation Index*")
-                if latest_ndvi:
-                    # Display date
-                    st.markdown(f"**Date:** {latest_ndvi['date']}")
-                    
-                    # Display statistics
-                    stats = latest_ndvi["statistics"]
-                    st.markdown(f"**Mean:** {stats['mean']:.3f}")
-                    st.markdown(f"**Min:** {stats['min']:.3f}")
-                    st.markdown(f"**Max:** {stats['max']:.3f}")
-                    
-                    # Display map
-                    fig = plot_ndvi_map(latest_ndvi["raster_data"], "NDVI Map")
-                    st.pyplot(fig)
-            
-            with col2:
-                st.markdown("### EVI")
-                st.markdown("*Enhanced Vegetation Index*")
-                if latest_evi:
-                    # Display date
-                    st.markdown(f"**Date:** {latest_evi['date']}")
-                    
-                    # Display statistics
-                    stats = latest_evi["statistics"]
-                    st.markdown(f"**Mean:** {stats['mean']:.3f}")
-                    st.markdown(f"**Min:** {stats['min']:.3f}")
-                    st.markdown(f"**Max:** {stats['max']:.3f}")
-                    
-                    # Display map
-                    fig = plot_ndvi_map(latest_evi["raster_data"], "EVI Map")
-                    st.pyplot(fig)
-            
-            with col3:
-                st.markdown("### NDWI")
-                st.markdown("*Normalized Difference Water Index*")
-                if latest_ndwi:
-                    # Display date
-                    st.markdown(f"**Date:** {latest_ndwi['date']}")
-                    
-                    # Display statistics
-                    stats = latest_ndwi["statistics"]
-                    st.markdown(f"**Mean:** {stats['mean']:.3f}")
-                    st.markdown(f"**Min:** {stats['min']:.3f}")
-                    st.markdown(f"**Max:** {stats['max']:.3f}")
-                    
-                    # Display map
-                    fig = plot_ndvi_map(latest_ndwi["raster_data"], "NDWI Map")
-                    st.pyplot(fig)
-            
-            # Display interactive map with latest data
-            st.subheader("Interactive Field Map")
-            
-            if latest_ndvi:
-                # Get bounds
-                bounds = latest_ndvi["bounds"]
-                bounds_list = [bounds.left, bounds.bottom, bounds.right, bounds.top]
-                
-                # Create base map
-                center_lat = (bounds.bottom + bounds.top) / 2
-                center_lon = (bounds.left + bounds.right) / 2
-                m = create_folium_map(center_lat, center_lon, zoom=10)
-                
-                # Add NDVI overlay
-                m = overlay_raster_on_map(
-                    m, 
-                    latest_ndvi["raster_data"], 
-                    [bounds.left, bounds.bottom, bounds.right, bounds.top],
-                    colormap="RdYlGn",
-                    name="NDVI"
-                )
-                
-                # Display the map
-                folium_static(m)
-                
-                # Add download option for raw data
-                st.download_button(
-                    label="Download Latest NDVI Data (CSV)",
-                    data=pd.DataFrame({
-                        "date": latest_ndvi["date"],
-                        "mean_ndvi": latest_ndvi["statistics"]["mean"],
-                        "min_ndvi": latest_ndvi["statistics"]["min"],
-                        "max_ndvi": latest_ndvi["statistics"]["max"]
-                    }, index=[0]).to_csv(index=False),
-                    file_name=f"{selected_field}_latest_ndvi.csv",
-                    mime="text/csv"
-                )
-        
-        with tab2:
-            st.subheader("Vegetation Indices Time Series")
-            
-            # Time series plots
-            if ndvi_time_series:
-                # Convert time series to lists
-                ndvi_dates = list(ndvi_time_series.keys())
-                ndvi_values = list(ndvi_time_series.values())
-                
-                # Create time series plot
-                fig = plot_time_series(
-                    ndvi_dates,
-                    ndvi_values,
-                    title="NDVI Time Series",
-                    y_label="NDVI Value"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Calculate NDVI statistics
-                if len(ndvi_values) > 0:
-                    ndvi_stats = {
-                        "mean": np.mean(ndvi_values),
-                        "max": np.max(ndvi_values),
-                        "min": np.min(ndvi_values),
-                        "std": np.std(ndvi_values)
-                    }
-                    
-                    st.markdown("### NDVI Statistics Over Time")
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Mean NDVI", f"{ndvi_stats['mean']:.3f}")
-                    col2.metric("Max NDVI", f"{ndvi_stats['max']:.3f}")
-                    col3.metric("Min NDVI", f"{ndvi_stats['min']:.3f}")
-                    col4.metric("NDVI Variability", f"{ndvi_stats['std']:.3f}")
-            
-            # Additional time series for EVI and NDWI if available
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if evi_time_series:
-                    evi_dates = list(evi_time_series.keys())
-                    evi_values = list(evi_time_series.values())
-                    
-                    fig = plot_time_series(
-                        evi_dates,
-                        evi_values,
-                        title="EVI Time Series",
-                        y_label="EVI Value"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                if ndwi_time_series:
-                    ndwi_dates = list(ndwi_time_series.keys())
-                    ndwi_values = list(ndwi_time_series.values())
-                    
-                    fig = plot_time_series(
-                        ndwi_dates,
-                        ndwi_values,
-                        title="NDWI Time Series",
-                        y_label="NDWI Value"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            # Download option for time series data
-            if ndvi_time_series:
-                time_series_df = pd.DataFrame({
-                    "date": ndvi_dates,
-                    "ndvi": ndvi_values
-                })
-                
-                if evi_time_series:
-                    evi_df = pd.DataFrame({
-                        "date": list(evi_time_series.keys()),
-                        "evi": list(evi_time_series.values())
-                    })
-                    time_series_df = pd.merge(time_series_df, evi_df, on="date", how="outer")
-                
-                if ndwi_time_series:
-                    ndwi_df = pd.DataFrame({
-                        "date": list(ndwi_time_series.keys()),
-                        "ndwi": list(ndwi_time_series.values())
-                    })
-                    time_series_df = pd.merge(time_series_df, ndwi_df, on="date", how="outer")
-                
-                st.download_button(
-                    label="Download Time Series Data (CSV)",
-                    data=time_series_df.to_csv(index=False),
-                    file_name=f"{selected_field}_time_series.csv",
-                    mime="text/csv"
-                )
-        
-        with tab3:
-            st.subheader("Anomaly Detection")
-            
-            # NDVI Anomaly Analysis
-            if ndvi_time_series and len(ndvi_time_series) > 3:
-                ndvi_dates = list(ndvi_time_series.keys())
-                ndvi_values = list(ndvi_time_series.values())
-                
-                # Detect anomalies
-                anomaly_threshold = st.slider(
-                    "Anomaly Detection Threshold (σ)",
-                    min_value=1.0,
-                    max_value=3.0,
-                    value=2.0,
-                    step=0.1,
-                    help="Z-score threshold for detecting anomalies in NDVI values"
-                )
-                
-                anomalies = detect_anomalies(ndvi_values, threshold=anomaly_threshold)
-                
-                # Display anomalies
-                if anomalies:
-                    st.markdown(f"**Detected {len(anomalies)} anomalies in the NDVI time series.**")
-                    
-                    # Plot with anomalies
-                    fig = plot_time_series(
-                        ndvi_dates,
-                        ndvi_values,
-                        title="NDVI Time Series with Anomalies",
-                        y_label="NDVI Value",
-                        anomalies=anomalies
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # List anomalies
-                    anomaly_data = []
-                    for idx in anomalies:
-                        anomaly_data.append({
-                            "Date": ndvi_dates[idx],
-                            "NDVI Value": ndvi_values[idx],
-                            "Z-Score": abs((ndvi_values[idx] - np.mean(ndvi_values)) / np.std(ndvi_values))
-                        })
-                    
-                    st.markdown("### Detected Anomalies")
-                    st.dataframe(pd.DataFrame(anomaly_data))
-                else:
-                    st.success("No anomalies detected in the NDVI time series based on the current threshold.")
-                
-                # Drought Detection
-                st.subheader("Drought Detection")
-                st.markdown("""
-                Drought detection analyzes consecutive NDVI drops of 0.15 or more, which can indicate water stress in crops.
-                """)
-                
-                drought_events = detect_drought(ndvi_values, ndvi_dates)
-                
-                if drought_events:
-                    st.warning(f"**Detected {len(drought_events)} potential drought periods!**")
-                    
-                    # Plot with drought periods
-                    fig = plot_drought_detection(ndvi_dates, ndvi_values, drought_events)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # List drought events
-                    drought_data = []
-                    for event in drought_events:
-                        drought_data.append({
-                            "Start Date": event["start_date"],
-                            "End Date": event["end_date"],
-                            "Duration (periods)": event["duration"],
-                            "Severity (NDVI drop)": event["severity"]
-                        })
-                    
-                    st.markdown("### Detected Drought Events")
-                    st.dataframe(pd.DataFrame(drought_data))
-                else:
-                    st.success("No drought periods detected in the NDVI time series.")
-                    
-                    # Show regular time series
-                    fig = plot_drought_detection(ndvi_dates, ndvi_values, [])
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Not enough data for anomaly detection. Please select a field with a longer time series.")
-        
-        with tab4:
-            st.subheader("Advanced Analytics")
-            
-            # Rolling Variance Analysis
-            if ndvi_time_series and len(ndvi_time_series) > 3:
-                st.markdown("### Field Heterogeneity Analysis")
-                st.markdown("""
-                This analysis calculates rolling variance of NDVI values over time to detect potential issues with field consistency, 
-                such as uneven germination, patchy growth, or irrigation problems.
-                """)
-                
-                ndvi_dates = list(ndvi_time_series.keys())
-                ndvi_values = list(ndvi_time_series.values())
-                
-                # Calculate rolling variance
-                window_size = min(3, len(ndvi_values))
-                rolling_var = calculate_rolling_variance(ndvi_values, window_size=window_size)
-                
-                # Plot rolling variance
-                fig = go.Figure()
-                
-                # Add NDVI line
-                fig.add_trace(go.Scatter(
-                    x=ndvi_dates,
-                    y=ndvi_values,
-                    mode='lines+markers',
-                    name='NDVI',
-                    line=dict(color='green', width=2)
-                ))
-                
-                # Add rolling variance line with secondary y-axis
-                fig.add_trace(go.Scatter(
-                    x=ndvi_dates,
-                    y=rolling_var,
-                    mode='lines+markers',
-                    name='Rolling Variance',
-                    line=dict(color='red', width=2),
-                    yaxis="y2"
-                ))
-                
-                # Set up layout with two y-axes
-                fig.update_layout(
-                    title='NDVI and Rolling Variance',
-                    xaxis_title='Date',
-                    yaxis=dict(
-                        title='NDVI Value',
-                        titlefont=dict(color='green'),
-                        tickfont=dict(color='green')
-                    ),
-                    yaxis2=dict(
-                        title='Variance',
-                        titlefont=dict(color='red'),
-                        tickfont=dict(color='red'),
-                        anchor='x',
-                        overlaying='y',
-                        side='right'
-                    ),
-                    height=500,
-                    width=800,
-                    template='plotly_white',
-                    hovermode='x unified'
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Interpretation
-                avg_variance = np.mean(rolling_var)
-                latest_variance = rolling_var[-1] if rolling_var else 0
-                
-                st.markdown(f"**Average Field Variance:** {avg_variance:.4f}")
-                st.markdown(f"**Latest Field Variance:** {latest_variance:.4f}")
-                
-                if latest_variance > avg_variance * 1.5:
-                    st.warning("⚠️ Field shows increased heterogeneity. This may indicate uneven growth or other field issues.")
-                elif latest_variance < avg_variance * 0.5:
-                    st.success("✅ Field shows more uniform conditions than average.")
-                else:
-                    st.info("ℹ️ Field variance is within normal range for this field's history.")
-                
-                # Multi-temporal PCA analysis
-                st.markdown("### Multi-Temporal Analysis")
-                
-                # Get data for PCA
-                if len(field_data) >= 3:
-                    st.markdown("""
-                    This analysis uses Principal Component Analysis (PCA) and clustering to identify patterns in the field's
-                    multi-temporal satellite data. This can help identify zones with similar growth patterns.
-                    """)
-                    
-                    # Collect raster data
-                    rasters = []
-                    dates = []
-                    
-                    for data in field_data:
-                        if data["index_type"] == "NDVI":
-                            rasters.append(data["raster_data"])
-                            dates.append(data["date"])
-                    
-                    if len(rasters) >= 3:
-                        # Stack rasters
-                        try:
-                            # Reshape rasters for PCA
-                            stacked_data = []
-                            for raster in rasters:
-                                flat_raster = raster.flatten()
-                                stacked_data.append(flat_raster)
-                            
-                            # Convert to pixel-based matrix
-                            stacked_data = np.array(stacked_data).T  # Shape: (pixels, timesteps)
-                            
-                            # Run PCA and clustering
-                            n_clusters = st.selectbox("Number of Clusters", options=[2, 3, 4, 5], index=1)
-                            
-                            st.text("Computing PCA and clustering...")
-                            pca_results, explained_variance, cluster_labels = perform_pca_clustering(
-                                stacked_data, n_clusters=n_clusters
-                            )
-                            
-                            if pca_results is not None:
-                                # Reshape cluster results back to image
-                                if cluster_labels is not None:
-                                    cluster_image = cluster_labels.reshape(rasters[0].shape)
-                                    
-                                    # Plot cluster image
-                                    fig, ax = plt.subplots(figsize=(10, 8))
-                                    cmap = plt.cm.tab10
-                                    im = ax.imshow(cluster_image, cmap=cmap, interpolation='nearest')
-                                    cbar = plt.colorbar(im, ax=ax)
-                                    cbar.set_label('Cluster')
-                                    plt.title(f'Field Zones (PCA + {n_clusters} Clusters)')
-                                    plt.axis('off')
-                                    st.pyplot(fig)
-                                    
-                                    # Plot explained variance
-                                    st.markdown(f"**Explained Variance:** PC1 ({explained_variance[0]:.1%}), PC2 ({explained_variance[1]:.1%})")
-                                    
-                                    # Create a DataFrame for downloading
-                                    cluster_df = pd.DataFrame({
-                                        'pixel_id': range(len(cluster_labels)),
-                                        'cluster': cluster_labels
-                                    })
-                                    
-                                    st.download_button(
-                                        label="Download Cluster Data (CSV)",
-                                        data=cluster_df.to_csv(index=False),
-                                        file_name=f"{selected_field}_clusters.csv",
-                                        mime="text/csv"
-                                    )
-                                    
-                                    # Interpretations of clusters
-                                    st.markdown("### Cluster Interpretation")
-                                    st.markdown("""
-                                    - Clusters represent areas in the field with similar growing patterns over time
-                                    - Large differences between clusters may indicate soil variability or management zones
-                                    - Areas with consistently low NDVI across time may need attention
-                                    """)
-                                    
-                                    # Show interpretation based on cluster count
-                                    unique_clusters = np.unique(cluster_labels)
-                                    st.markdown(f"**Number of zones detected:** {len(unique_clusters)}")
-                                    
-                                    if len(unique_clusters) >= 3:
-                                        st.warning("Multiple distinct zones detected. This field may benefit from zone-based management.")
-                                    else:
-                                        st.success("Field appears relatively uniform across growing seasons.")
-                        except Exception as e:
-                            st.error(f"Error in multi-temporal analysis: {str(e)}")
-                            logger.exception("Multi-temporal analysis error")
-                    else:
-                        st.info("Not enough NDVI data for multi-temporal analysis. At least 3 dates are required.")
-                else:
-                    st.info("Not enough data for multi-temporal analysis. Please select a field with more images.")
-            else:
-                st.info("Not enough data for advanced analytics. Please select a field with a longer time series.")
-    else:
-        st.error(f"No data found for field '{selected_field}'. Please process data for this field in the Data Ingest section.")
-else:
-    st.info("""
-    No fields available for analysis. Please go to the Data Ingest section to process field data first.
-    
-    You can:
-    1. Draw a field boundary on the map
-    2. Upload a GeoJSON file with field boundaries
-    3. Select a country for country-level analysis
-    """)
-    
-    # Display sample agricultural field image
-    st.image("https://pixabay.com/get/g879b44be88f7b57d084cc1720ca16fd7c256f93e15c6d03affe5cf8e36c009d93abf1f23dd42863852eb153851fdb35af3cfc66d04d2878ab81d1192661dd77a_1280.jpg", 
-             caption="Analyze agricultural fields with satellite data")
-
-# Bottom-page links
+st.markdown("# Field Analysis")
+st.markdown("Analyze satellite data for agricultural fields")
 st.markdown("---")
-st.markdown("""
-👈 Go to **Data Ingest** to process more fields
 
-👉 Continue to **Yield Forecast** to predict crop production
-""")
+# Get fields from database
+fields = []
+try:
+    db = next(get_db())
+    fields = db.query(Field).all()
+except Exception as e:
+    st.error(f"Error fetching fields from database: {str(e)}")
+
+if not fields:
+    st.warning("No fields found in the database. Please add fields in the Data Ingest page.")
+    st.stop()
+
+# Sidebar
+with st.sidebar:
+    st.markdown("## Analysis Options")
+    
+    # Field selection
+    field_names = [field.name for field in fields]
+    selected_field_name = st.selectbox("Select Field", options=field_names)
+    
+    # Get the selected field
+    selected_field = next((field for field in fields if field.name == selected_field_name), None)
+    
+    if selected_field:
+        # Analysis type
+        analysis_type = st.radio(
+            "Analysis Type",
+            ["NDVI Analysis", "EVI Analysis", "Time Series Analysis", "Anomaly Detection"]
+        )
+        
+        # Date range selection
+        st.markdown("## Date Range")
+        
+        # Set default dates (past year)
+        default_start_date = DEFAULT_START_DATE
+        default_end_date = DEFAULT_END_DATE
+        
+        start_date = st.date_input(
+            "Start Date",
+            value=default_start_date,
+            min_value=datetime.datetime(2015, 6, 23),  # Sentinel-2 launch date
+            max_value=datetime.datetime.now()
+        )
+        
+        end_date = st.date_input(
+            "End Date",
+            value=default_end_date,
+            min_value=start_date,
+            max_value=datetime.datetime.now()
+        )
+        
+        # Cloud coverage option
+        max_cloud_cover = st.slider(
+            "Max Cloud Coverage (%)",
+            min_value=0,
+            max_value=100,
+            value=int(DEFAULT_MAX_CLOUD_COVERAGE),
+            step=5
+        )
+        
+        # Run analysis button
+        run_analysis = st.button("Run Analysis", type="primary", use_container_width=True)
+    
+    st.markdown("## Help")
+    st.markdown("""
+    - **NDVI**: Normalized Difference Vegetation Index
+    - **EVI**: Enhanced Vegetation Index
+    - **Cloud Coverage**: Higher values include more cloudy images
+    """)
+
+# Main content
+if selected_field:
+    # Display field info
+    st.markdown(f"## Field: {selected_field.name}")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"**Crop Type:** {selected_field.crop_type or 'Not specified'}")
+    
+    with col2:
+        st.markdown(f"**Area:** {selected_field.area_hectares:.2f} hectares")
+    
+    with col3:
+        st.markdown(f"**Location:** Lat: {selected_field.center_lat:.6f}, Lon: {selected_field.center_lon:.6f}")
+    
+    # Display map
+    try:
+        # Parse GeoJSON
+        geojson_data = json.loads(selected_field.geojson) if isinstance(selected_field.geojson, str) else selected_field.geojson
+        
+        # Create map centered on the field
+        m = folium.Map(location=[selected_field.center_lat, selected_field.center_lon], zoom_start=13)
+        
+        # Add GeoJSON to map
+        folium.GeoJson(
+            geojson_data,
+            name="Field Boundary",
+            style_function=lambda x: {
+                'fillColor': '#28a745',
+                'color': '#28a745',
+                'weight': 2,
+                'fillOpacity': 0.4
+            }
+        ).add_to(m)
+        
+        # Display map
+        folium_static(m, width=800, height=400)
+        
+    except Exception as e:
+        st.error(f"Error displaying field boundary: {str(e)}")
+    
+    # Check if analysis should be run
+    if run_analysis:
+        # Display loading message
+        with st.spinner(f"Running {analysis_type} for {selected_field.name}..."):
+            try:
+                # Check if Sentinel Hub credentials are valid
+                if not SENTINEL_HUB_CLIENT_ID or not SENTINEL_HUB_CLIENT_SECRET:
+                    st.error("Sentinel Hub credentials are not set. Please set them in the environment variables.")
+                    st.stop()
+                
+                # Convert dates to datetime
+                start_datetime = datetime.datetime.combine(start_date, datetime.time.min)
+                end_datetime = datetime.datetime.combine(end_date, datetime.time.max)
+                
+                # Format time interval for Sentinel Hub
+                time_interval = (start_datetime.strftime("%Y-%m-%dT00:00:00Z"), end_datetime.strftime("%Y-%m-%dT23:59:59Z"))
+                
+                # Get bounding box from field GeoJSON
+                polygon, crs = parse_geojson(selected_field.geojson if isinstance(selected_field.geojson, str) else json.dumps(selected_field.geojson))
+                bbox = get_bbox_from_polygon(polygon)
+                
+                # Fetch satellite data
+                st.info("Fetching satellite data from Sentinel Hub API. This may take a moment...")
+                
+                try:
+                    # Fetch data from Sentinel Hub
+                    sat_data, metadata = fetch_sentinel_data(
+                        bbox=bbox,
+                        time_interval=time_interval,
+                        resolution=10  # 10m resolution
+                    )
+                    
+                    if sat_data is None:
+                        st.error("Failed to fetch satellite data. Check logs for details.")
+                        st.stop()
+                    
+                    # Process based on analysis type
+                    if analysis_type == "NDVI Analysis":
+                        # Extract NDVI from satellite data
+                        ndvi_image = sat_data.get("ndvi")
+                        rgb_image = sat_data.get("rgb")
+                        scl_image = sat_data.get("scl")
+                        
+                        if ndvi_image is None:
+                            st.error("No NDVI data found in the satellite imagery.")
+                            st.stop()
+                        
+                        # Apply cloud masking
+                        if scl_image is not None:
+                            ndvi_masked = apply_cloud_mask(ndvi_image, scl_image)
+                        else:
+                            ndvi_masked = ndvi_image
+                        
+                        # Calculate statistics
+                        ndvi_stats = calculate_zonal_statistics(ndvi_masked)
+                        
+                        # Save processed data
+                        save_processed_data(
+                            field_name=selected_field.name,
+                            data_type="ndvi",
+                            data=ndvi_masked,
+                            metadata={
+                                "stats": ndvi_stats,
+                                "acquisition_date": metadata.get("timestamp"),
+                                "cloud_coverage": metadata.get("cloud_coverage", 0)
+                            }
+                        )
+                        
+                        # Store in database
+                        db = next(get_db())
+                        
+                        # Convert ndvi to geotiff and save
+                        image_path = os.path.join(
+                            PROCESSED_DATA_DIR, 
+                            selected_field.name, 
+                            f"ndvi_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.tiff"
+                        )
+                        metadata_path = os.path.join(
+                            PROCESSED_DATA_DIR, 
+                            selected_field.name, 
+                            f"ndvi_metadata_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                        )
+                        
+                        save_to_geotiff(ndvi_masked, metadata, image_path)
+                        save_stac_metadata(metadata, metadata_path)
+                        
+                        # Create satellite image record
+                        satellite_image = SatelliteImage(
+                            field_id=selected_field.id,
+                            image_type="NDVI",
+                            image_path=image_path,
+                            metadata_path=metadata_path,
+                            acquisition_date=datetime.datetime.fromisoformat(metadata.get("timestamp").split("+")[0]),
+                            cloud_cover_percentage=metadata.get("cloud_coverage", 0),
+                            scene_id=metadata.get("scene_id", "unknown"),
+                            stats=ndvi_stats
+                        )
+                        
+                        db.add(satellite_image)
+                        db.commit()
+                        
+                        # Display results
+                        st.markdown("## NDVI Analysis Results")
+                        
+                        # Create NDVI visualization
+                        fig = create_index_map(
+                            ndvi_masked,
+                            index_type="NDVI",
+                            title=f"NDVI - {selected_field.name} - {datetime.datetime.now().strftime('%Y-%m-%d')}"
+                        )
+                        
+                        # Display map
+                        st.pyplot(fig)
+                        
+                        # Display statistics
+                        st.markdown("### NDVI Statistics")
+                        
+                        # Create columns for statistics
+                        stat_cols = st.columns(5)
+                        
+                        with stat_cols[0]:
+                            st.metric("Minimum", f"{ndvi_stats.get('min', 0):.3f}")
+                        
+                        with stat_cols[1]:
+                            st.metric("Maximum", f"{ndvi_stats.get('max', 0):.3f}")
+                        
+                        with stat_cols[2]:
+                            st.metric("Mean", f"{ndvi_stats.get('mean', 0):.3f}")
+                        
+                        with stat_cols[3]:
+                            st.metric("Median", f"{ndvi_stats.get('median', 0):.3f}")
+                        
+                        with stat_cols[4]:
+                            st.metric("Std Dev", f"{ndvi_stats.get('std', 0):.3f}")
+                        
+                        # Display histogram
+                        hist_fig = create_histogram_figure(
+                            ndvi_masked,
+                            index_type="NDVI",
+                            title=f"NDVI Distribution - {selected_field.name}"
+                        )
+                        
+                        st.pyplot(hist_fig)
+                        
+                        # Mark analysis as complete
+                        st.success("NDVI analysis completed successfully.")
+                        st.balloons()
+                    
+                    elif analysis_type == "EVI Analysis":
+                        # For now, just show a placeholder
+                        st.markdown("## EVI Analysis Results")
+                        st.info("EVI analysis functionality will be available in a future update.")
+                    
+                    elif analysis_type == "Time Series Analysis":
+                        st.markdown("## Time Series Analysis")
+                        st.info("Time series analysis functionality will be available in a future update.")
+                        
+                        # Placeholder for time series visualization
+                        st.markdown("### Example Time Series Visualization")
+                        
+                        # Create a dummy time series for visualization
+                        today = datetime.datetime.now()
+                        dates = [(today - datetime.timedelta(days=i*30)) for i in range(12)]
+                        
+                        # Generate some dummy NDVI data (seasonal pattern with noise)
+                        time_series_data = {}
+                        for date in dates:
+                            # Seasonal pattern (higher in summer, lower in winter)
+                            # Assuming Northern Hemisphere
+                            month = date.month
+                            base_value = 0.4 + 0.3 * np.sin((month - 3) * np.pi / 6)  # Peak in July
+                            
+                            # Add some noise
+                            noise = np.random.normal(0, 0.05)
+                            time_series_data[date.isoformat()] = base_value + noise
+                        
+                        # Create visualization
+                        ts_fig = create_multi_temporal_figure(
+                            time_series_data,
+                            title=f"NDVI Time Series - {selected_field.name}",
+                            y_label="NDVI"
+                        )
+                        
+                        st.pyplot(ts_fig)
+                        
+                    elif analysis_type == "Anomaly Detection":
+                        st.markdown("## Anomaly Detection")
+                        st.info("Anomaly detection functionality will be available in a future update.")
+                        
+                        # Placeholder for anomaly detection visualization
+                        st.markdown("### Example Anomaly Detection Visualization")
+                        
+                        # Create a dummy time series with anomalies for visualization
+                        today = datetime.datetime.now()
+                        dates = [(today - datetime.timedelta(days=i*30)) for i in range(12)]
+                        
+                        # Generate some dummy NDVI data (seasonal pattern with noise)
+                        time_series_data = {}
+                        for date in dates:
+                            # Seasonal pattern (higher in summer, lower in winter)
+                            # Assuming Northern Hemisphere
+                            month = date.month
+                            base_value = 0.4 + 0.3 * np.sin((month - 3) * np.pi / 6)  # Peak in July
+                            
+                            # Add some noise
+                            noise = np.random.normal(0, 0.05)
+                            time_series_data[date.isoformat()] = base_value + noise
+                        
+                        # Add artificial anomalies
+                        anomaly_dates = [dates[2], dates[7]]
+                        for date in anomaly_dates:
+                            if date.month >= 6 and date.month <= 8:  # Summer months
+                                time_series_data[date.isoformat()] -= 0.3  # Low anomaly in summer
+                            else:
+                                time_series_data[date.isoformat()] += 0.3  # High anomaly in winter
+                        
+                        # Run anomaly detection
+                        anomalies = detect_anomalies(time_series_data, method="zscore", threshold=2.0)
+                        
+                        # Create visualization
+                        anomaly_fig = create_anomaly_figure(
+                            time_series_data,
+                            anomalies,
+                            title=f"NDVI Anomalies - {selected_field.name}",
+                            y_label="NDVI"
+                        )
+                        
+                        st.pyplot(anomaly_fig)
+                
+                except Exception as e:
+                    st.error(f"Error fetching or processing satellite data: {str(e)}")
+                    logger.error(f"Error in satellite data processing: {traceback.format_exc()}")
+                
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+                logger.error(f"Error during analysis: {traceback.format_exc()}")
+    
+    else:
+        # Display instructions
+        st.info("Select analysis options in the sidebar and click 'Run Analysis' to start.")
+        
+        # Display previous analysis if available
+        st.markdown("## Previous Analysis")
+        
+        # Check if there are saved satellite images for this field
+        try:
+            db = next(get_db())
+            satellite_images = db.query(SatelliteImage).filter(SatelliteImage.field_id == selected_field.id).order_by(SatelliteImage.acquisition_date.desc()).limit(5).all()
+            
+            if satellite_images:
+                st.markdown(f"Found {len(satellite_images)} previous analyses for this field.")
+                
+                # Create tabs for each previous analysis
+                tabs = st.tabs([f"{img.image_type} - {img.acquisition_date.strftime('%Y-%m-%d')}" for img in satellite_images])
+                
+                for i, (tab, img) in enumerate(zip(tabs, satellite_images)):
+                    with tab:
+                        st.markdown(f"### {img.image_type} Analysis - {img.acquisition_date.strftime('%Y-%m-%d')}")
+                        
+                        # Display statistics if available
+                        if img.stats:
+                            st.markdown("#### Statistics")
+                            
+                            stat_cols = st.columns(5)
+                            
+                            stats = img.stats
+                            with stat_cols[0]:
+                                st.metric("Minimum", f"{stats.get('min', 0):.3f}")
+                            
+                            with stat_cols[1]:
+                                st.metric("Maximum", f"{stats.get('max', 0):.3f}")
+                            
+                            with stat_cols[2]:
+                                st.metric("Mean", f"{stats.get('mean', 0):.3f}")
+                            
+                            with stat_cols[3]:
+                                st.metric("Median", f"{stats.get('median', 0):.3f}")
+                            
+                            with stat_cols[4]:
+                                st.metric("Std Dev", f"{stats.get('std', 0):.3f}")
+                        
+                        # Display image if available
+                        if os.path.exists(img.image_path):
+                            st.markdown("#### Visualization")
+                            st.markdown(f"Image path: {img.image_path}")
+                            
+                            # For now, just indicate that the image is available
+                            st.info("Image visualization will be available in a future update.")
+                        else:
+                            st.warning(f"Image file not found at {img.image_path}")
+            else:
+                st.info("No previous analyses found for this field.")
+        
+        except Exception as e:
+            st.error(f"Error fetching previous analyses: {str(e)}")
+            logger.error(f"Error fetching previous analyses: {traceback.format_exc()}")
+
+else:
+    st.warning("Please select a field from the sidebar.")
+
+# Help information
+with st.expander("Help & Information"):
+    st.markdown("""
+    ## Field Analysis Tools
+    
+    This page provides tools to analyze satellite data for your agricultural fields:
+    
+    - **NDVI Analysis**: Calculate vegetation health using the Normalized Difference Vegetation Index
+    - **EVI Analysis**: Calculate Enhanced Vegetation Index, which is more sensitive to variations in dense vegetation
+    - **Time Series Analysis**: Track changes in vegetation indices over time
+    - **Anomaly Detection**: Identify unusual patterns or outliers in vegetation data
+    
+    ## Data Sources
+    
+    Analyses use Sentinel-2 satellite imagery, which provides:
+    - High-resolution (10m/pixel) multispectral data
+    - Regular revisit times (approximately every 5 days)
+    - Free and open data access
+    
+    ## Interpreting Results
+    
+    - **NDVI Range**: -1.0 to 1.0, with healthy vegetation typically between 0.4 and 0.8
+    - **Field Statistics**: Provides overall health metrics for your field
+    - **Time Series**: Shows patterns and trends of vegetation health over time
+    """)

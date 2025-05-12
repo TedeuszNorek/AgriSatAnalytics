@@ -1,390 +1,369 @@
+"""
+Data Ingest - Import and manage field data
+"""
 import os
+import json
+import logging
+import datetime
+import traceback
+from typing import Dict, List, Any, Optional, Tuple
+
 import streamlit as st
 import pandas as pd
-import json
-import datetime
-import logging
-import asyncio
-import uuid
-import time
-from shapely.geometry import shape, Polygon
-from typing import Dict, List, Tuple, Optional
+import numpy as np
 import folium
+import geopandas as gpd
 from streamlit_folium import folium_static
-import plotly.express as px
+from shapely.geometry import Polygon, shape
 
+from database import get_db, Field
 from utils.data_access import (
+    get_sentinel_hub_config, 
     parse_geojson, 
-    get_bbox_from_polygon, 
-    get_available_scenes,
-    fetch_sentinel_data,
-    get_country_boundary,
-    save_to_geotiff,
-    save_stac_metadata
+    get_bbox_from_polygon,
+    get_country_boundary
 )
-from utils.processing import (
-    calculate_vegetation_indices,
-    calculate_zonal_statistics
-)
-from utils.visualization import (
-    plot_ndvi_map,
-    create_folium_map,
-    add_geojson_to_map
+from config import (
+    SENTINEL_HUB_CLIENT_ID,
+    SENTINEL_HUB_CLIENT_SECRET,
+    CROP_TYPES,
+    APP_NAME,
+    APP_DESCRIPTION
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Page config
+# Configure page
 st.set_page_config(
-    page_title="Data Ingest - Agro Insight",
-    page_icon="📥",
+    page_title=f"{APP_NAME} - Data Ingest",
+    page_icon="🛰️",
     layout="wide"
 )
 
-# Initialize session state for this page
-if "field_geojson" not in st.session_state:
-    st.session_state.field_geojson = None
-if "field_polygon" not in st.session_state:
-    st.session_state.field_polygon = None
-if "field_name" not in st.session_state:
-    st.session_state.field_name = ""
-if "ingest_status" not in st.session_state:
-    st.session_state.ingest_status = {}
-if "available_fields" not in st.session_state:
-    st.session_state.available_fields = []
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Header
-st.title("📥 Data Ingest")
-st.markdown("""
-Import field boundaries and satellite data for analysis. You can:
-1. Draw a polygon on the map
-2. Upload a GeoJSON file
-3. Enter a country code for country-level analysis
-""")
+st.markdown("# Data Ingest")
+st.markdown("Import and manage agricultural field data")
+st.markdown("---")
 
-# Main layout
-col1, col2 = st.columns([3, 2])
+# Sidebar
+with st.sidebar:
+    st.markdown("## Data Options")
+    data_option = st.radio(
+        "Choose Data Source",
+        ["Upload GeoJSON", "Draw on Map", "Import from Database"]
+    )
+    
+    st.markdown("## Field Management")
+    manage_option = st.radio(
+        "Manage Fields",
+        ["Add New Field", "Edit Existing Field", "Delete Field"]
+    )
 
-with col1:
-    st.subheader("Field Selection")
+# Main content
+if data_option == "Upload GeoJSON" and manage_option == "Add New Field":
+    st.markdown("## Upload Field Boundary")
     
-    # Tab layout for different input methods
-    tab1, tab2, tab3 = st.tabs(["Draw Polygon", "Upload GeoJSON", "Country Code"])
+    # File uploader
+    uploaded_file = st.file_uploader("Upload GeoJSON file", type=["geojson", "json"])
     
-    with tab1:
-        st.markdown("Draw a polygon on the map to define your field boundary.")
-        
-        # Create a Folium map for drawing
-        m = folium.Map(location=[50.0, 10.0], zoom_start=4)
-        
-        # Add drawing controls
-        folium.plugins.Draw(
-            export=True,
-            position='topleft',
-            draw_options={
-                'polyline': False,
-                'rectangle': True,
-                'circle': False,
-                'circlemarker': False,
-                'marker': False
-            }
-        ).add_to(m)
-        
-        # Display the map
-        folium_static(m)
-        
-        # Button to capture drawn polygon
-        if st.button("Use Drawn Polygon"):
-            st.warning("This functionality requires JavaScript integration to capture the drawn polygon. Please use GeoJSON upload instead.")
-    
-    with tab2:
-        uploaded_file = st.file_uploader("Upload GeoJSON file", type=["json", "geojson"])
-        
-        if uploaded_file:
-            try:
-                geojson_data = json.load(uploaded_file)
-                field_polygon, _ = parse_geojson(geojson_data)
-                
-                # Display the polygon on a map
-                bbox = field_polygon.bounds
-                center_lat = (bbox[1] + bbox[3]) / 2
-                center_lon = (bbox[0] + bbox[2]) / 2
-                
-                # Create a Folium map centered on the polygon
-                m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
-                
-                # Convert the polygon to GeoJSON format
-                geojson_data = {
-                    "type": "FeatureCollection",
-                    "features": [
-                        {
-                            "type": "Feature",
-                            "geometry": field_polygon.__geo_interface__,
-                            "properties": {"name": "Uploaded Field"}
-                        }
-                    ]
+    if uploaded_file is not None:
+        try:
+            # Read file content
+            geojson_content = uploaded_file.read().decode()
+            geojson_data = json.loads(geojson_content)
+            
+            # Parse GeoJSON and extract polygon
+            polygon, crs = parse_geojson(geojson_data)
+            bbox = get_bbox_from_polygon(polygon)
+            
+            # Calculate center and area
+            centroid = polygon.centroid
+            center_lat, center_lon = centroid.y, centroid.x
+            
+            # Convert area to hectares (assuming coordinates are in degrees)
+            # This is a rough approximation, more accurate calculations would require reprojection
+            area_m2 = polygon.area * 111000 * 111000  # Approximate conversion from degrees to meters
+            area_hectares = area_m2 / 10000  # Convert m² to hectares
+            
+            # Display map with the field boundary
+            st.markdown("### Field Boundary")
+            
+            # Create map centered on the field
+            m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
+            
+            # Add GeoJSON to map
+            folium.GeoJson(
+                geojson_data,
+                name="Field Boundary",
+                style_function=lambda x: {
+                    'fillColor': '#28a745',
+                    'color': '#28a745',
+                    'weight': 2,
+                    'fillOpacity': 0.4
                 }
+            ).add_to(m)
+            
+            # Add marker at center
+            folium.Marker(
+                [center_lat, center_lon],
+                popup="Field Center",
+                icon=folium.Icon(color="green", icon="leaf")
+            ).add_to(m)
+            
+            # Display map
+            folium_static(m, width=800, height=500)
+            
+            # Field details form
+            st.markdown("### Field Details")
+            
+            with st.form("field_details_form"):
+                field_name = st.text_input("Field Name", value=f"Field {datetime.datetime.now().strftime('%Y%m%d')}")
+                crop_type = st.selectbox("Crop Type", options=[""] + CROP_TYPES)
                 
-                # Add the polygon to the map
-                folium.GeoJson(
-                    geojson_data,
-                    style_function=lambda x: {
-                        'fillColor': '#28a745',
-                        'color': '#28a745',
-                        'fillOpacity': 0.3,
-                        'weight': 2
-                    },
-                    tooltip="Uploaded Field"
-                ).add_to(m)
+                # Display calculated area and coordinates
+                st.markdown(f"**Calculated Area:** {area_hectares:.2f} hectares")
+                st.markdown(f"**Center Coordinates:** Lat: {center_lat:.6f}, Lon: {center_lon:.6f}")
                 
-                # Display the map
-                folium_static(m)
+                # Additional notes
+                notes = st.text_area("Notes", placeholder="Enter any additional information about this field")
                 
-                # Save to session state
-                st.session_state.field_geojson = geojson_data
-                st.session_state.field_polygon = field_polygon
+                # Submit button
+                submit_button = st.form_submit_button("Save Field")
                 
-                # Input field for the field name
-                field_name = st.text_input("Field Name", "Field_" + str(uuid.uuid4())[:8])
-                st.session_state.field_name = field_name
-                
-                st.success("GeoJSON file loaded successfully.")
-                
-            except Exception as e:
-                st.error(f"Error loading GeoJSON file: {str(e)}")
-    
-    with tab3:
-        country_code = st.text_input("Country ISO Code (e.g., PL for Poland)")
-        
-        if st.button("Get Country Boundary"):
-            if country_code:
-                with st.spinner(f"Fetching boundary for {country_code}..."):
-                    country_polygon = get_country_boundary(country_code)
-                    
-                    if country_polygon:
-                        # Display the country polygon on a map
-                        bbox = country_polygon.bounds
-                        center_lat = (bbox[1] + bbox[3]) / 2
-                        center_lon = (bbox[0] + bbox[2]) / 2
+                if submit_button:
+                    try:
+                        # Create database session
+                        db = next(get_db())
                         
-                        # Create a Folium map centered on the country
-                        m = folium.Map(location=[center_lat, center_lon], zoom_start=4)
+                        # Check if field name already exists
+                        existing_field = db.query(Field).filter(Field.name == field_name).first()
                         
-                        # Convert the polygon to GeoJSON format
-                        geojson_data = {
-                            "type": "FeatureCollection",
-                            "features": [
-                                {
-                                    "type": "Feature",
-                                    "geometry": country_polygon.__geo_interface__,
-                                    "properties": {"name": f"Country: {country_code.upper()}"}
-                                }
-                            ]
-                        }
+                        if existing_field:
+                            st.error(f"Field name '{field_name}' already exists. Please choose a different name.")
+                        else:
+                            # Create new field
+                            new_field = Field(
+                                name=field_name,
+                                geojson=json.dumps(geojson_data),
+                                center_lat=float(center_lat),
+                                center_lon=float(center_lon),
+                                area_hectares=float(area_hectares),
+                                crop_type=crop_type if crop_type else None
+                            )
+                            
+                            # Add and commit to database
+                            db.add(new_field)
+                            db.commit()
+                            
+                            st.success(f"Field '{field_name}' has been saved successfully!")
+                            st.balloons()
+                            
+                    except Exception as e:
+                        st.error(f"Error saving field: {str(e)}")
+                        logger.error(f"Error saving field: {traceback.format_exc()}")
                         
-                        # Add the polygon to the map
-                        folium.GeoJson(
-                            geojson_data,
-                            style_function=lambda x: {
-                                'fillColor': '#3388ff',
-                                'color': '#3388ff',
-                                'fillOpacity': 0.2,
-                                'weight': 2
-                            },
-                            tooltip=f"Country: {country_code.upper()}"
-                        ).add_to(m)
-                        
-                        # Display the map
-                        folium_static(m)
-                        
-                        # Save to session state
-                        st.session_state.field_geojson = geojson_data
-                        st.session_state.field_polygon = country_polygon
-                        st.session_state.field_name = f"Country_{country_code.upper()}"
-                        
-                        st.success(f"Successfully loaded boundary for {country_code.upper()}")
-                    else:
-                        st.error(f"Could not find boundary for country code: {country_code}")
-            else:
-                st.error("Please enter a country ISO code.")
+        except Exception as e:
+            st.error(f"Error processing GeoJSON file: {str(e)}")
+            logger.error(f"Error processing GeoJSON file: {traceback.format_exc()}")
 
-with col2:
-    st.subheader("Data Acquisition Options")
+elif data_option == "Draw on Map" and manage_option == "Add New Field":
+    st.markdown("## Draw Field Boundary")
+    st.info("This feature is under development. Please use the GeoJSON upload option.")
     
-    if st.session_state.field_polygon:
-        # Time range selection
-        st.markdown("##### Time Range")
-        col_start, col_end = st.columns(2)
+    # Placeholder for future implementation
+    st.markdown("""
+    In a future version, you will be able to:
+    1. Draw field boundaries directly on a map
+    2. Edit the shape interactively
+    3. Save the drawn field to the database
+    """)
+
+elif data_option == "Import from Database" or manage_option in ["Edit Existing Field", "Delete Field"]:
+    st.markdown("## Manage Existing Fields")
+    
+    # Get fields from database
+    fields = []
+    try:
+        db = next(get_db())
+        fields = db.query(Field).all()
+    except Exception as e:
+        st.error(f"Error fetching fields from database: {str(e)}")
+    
+    if fields:
+        # Create a dataframe for display
+        field_data = []
+        for field in fields:
+            field_data.append({
+                "ID": field.id,
+                "Name": field.name,
+                "Crop Type": field.crop_type or "Not specified",
+                "Area (ha)": round(field.area_hectares, 2),
+                "Created": field.created_at.strftime('%Y-%m-%d')
+            })
         
-        with col_start:
-            start_date = st.date_input(
-                "Start Date",
-                value=datetime.date.today() - datetime.timedelta(days=365),
-                max_value=datetime.date.today()
-            )
+        st.dataframe(pd.DataFrame(field_data), use_container_width=True)
         
-        with col_end:
-            end_date = st.date_input(
-                "End Date",
-                value=datetime.date.today(),
-                min_value=start_date,
-                max_value=datetime.date.today()
-            )
+        # Field selection
+        field_names = [field.name for field in fields]
+        selected_field_name = st.selectbox("Select Field", options=field_names)
         
-        # Cloud coverage filter
-        cloud_coverage = st.slider(
-            "Maximum Cloud Coverage (%)",
-            min_value=0,
-            max_value=100,
-            value=20,
-            step=5,
-            help="Filter Sentinel-2 scenes by maximum cloud coverage percentage."
-        )
+        # Get the selected field
+        selected_field = next((field for field in fields if field.name == selected_field_name), None)
         
-        # Data selection
-        st.markdown("##### Data Selection")
-        
-        indices_to_calculate = st.multiselect(
-            "Vegetation Indices to Calculate",
-            options=["NDVI", "EVI", "NDWI"],
-            default=["NDVI", "EVI", "NDWI"],
-            help="Select which vegetation indices to calculate from the satellite data."
-        )
-        
-        # Start ingestion button
-        if st.button("Start Data Ingestion"):
-            if not st.session_state.field_polygon:
-                st.error("Please select a field boundary first.")
-            else:
+        if selected_field:
+            # Display field details
+            st.markdown("### Field Details")
+            
+            # Create two columns
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Display map with field boundary
                 try:
-                    # Convert polygon to Sentinel Hub BBox
-                    bbox = get_bbox_from_polygon(st.session_state.field_polygon)
+                    # Parse GeoJSON
+                    geojson_data = json.loads(selected_field.geojson) if isinstance(selected_field.geojson, str) else selected_field.geojson
                     
-                    # Get available scenes
-                    with st.spinner("Finding available Sentinel-2 scenes..."):
-                        scenes = get_available_scenes(
-                            bbox,
-                            datetime.datetime.combine(start_date, datetime.time.min),
-                            datetime.datetime.combine(end_date, datetime.time.max),
-                            max_cloud_coverage=float(cloud_coverage)
-                        )
+                    # Create map centered on the field
+                    m = folium.Map(location=[selected_field.center_lat, selected_field.center_lon], zoom_start=13)
                     
-                    if scenes:
-                        st.success(f"Found {len(scenes)} scenes matching your criteria.")
-                        
-                        # Display sample scene IDs
-                        sample_ids = [scene["id"] for scene in scenes[:3]]
-                        st.markdown(f"Sample scene IDs: {', '.join(sample_ids)}")
-                        
-                        # Store ingestion information in session state
-                        ingest_id = str(uuid.uuid4())
-                        st.session_state.ingest_status[ingest_id] = {
-                            "field_name": st.session_state.field_name,
-                            "polygon": st.session_state.field_polygon,
-                            "bbox": bbox,
-                            "start_date": start_date.isoformat(),
-                            "end_date": end_date.isoformat(),
-                            "cloud_coverage": cloud_coverage,
-                            "indices": indices_to_calculate,
-                            "scenes": scenes,
-                            "status": "queued",
-                            "processed_scenes": 0,
-                            "total_scenes": len(scenes),
-                            "timestamp": datetime.datetime.now().isoformat()
+                    # Add GeoJSON to map
+                    folium.GeoJson(
+                        geojson_data,
+                        name="Field Boundary",
+                        style_function=lambda x: {
+                            'fillColor': '#28a745',
+                            'color': '#28a745',
+                            'weight': 2,
+                            'fillOpacity': 0.4
                         }
-                        
-                        # Update available fields list if this is a new field
-                        if st.session_state.field_name not in st.session_state.available_fields:
-                            st.session_state.available_fields.append(st.session_state.field_name)
-                        
-                        st.markdown(f"Ingestion ID: `{ingest_id}`")
-                        st.info("Data ingestion has been queued. The process will start in the background.")
-                        
-                        # In a real application, this would be handled by a background task
-                        # For this demo, we'll start it immediately and show progress
-                        with st.spinner(f"Processing scene 1/{len(scenes)}..."):
-                            # Fetch the first scene as a demo
-                            if len(scenes) > 0:
-                                first_scene = scenes[0]
-                                time_interval = (
-                                    first_scene.get("properties", {}).get("datetime", ""),
-                                    first_scene.get("properties", {}).get("datetime", "")
-                                )
-                                
-                                # Fetch data for the first scene
-                                image, metadata = fetch_sentinel_data(
-                                    bbox,
-                                    time_interval,
-                                    resolution=10
-                                )
-                                
-                                # Calculate vegetation indices
-                                indices = calculate_vegetation_indices(image)
-                                
-                                # Save data for the first scene
-                                if "NDVI" in indices_to_calculate:
-                                    ndvi_filename = f"{st.session_state.field_name}_NDVI_{first_scene['id']}"
-                                    save_to_geotiff(indices["ndvi"], metadata, ndvi_filename)
-                                    save_stac_metadata(metadata, ndvi_filename)
-                                
-                                # Update status
-                                st.session_state.ingest_status[ingest_id]["processed_scenes"] = 1
-                                st.session_state.ingest_status[ingest_id]["status"] = "processing"
-                                
-                                # Calculate some field statistics for demonstration
-                                if "ndvi" in indices:
-                                    ndvi_stats = calculate_zonal_statistics(
-                                        indices["ndvi"],
-                                        st.session_state.field_polygon
-                                    )
-                                    
-                                    st.markdown("##### Sample NDVI Statistics")
-                                    st.json(ndvi_stats)
-                                    
-                                    # Create a sample visualization
-                                    fig = plot_ndvi_map(indices["ndvi"], f"NDVI Map - {st.session_state.field_name}")
-                                    st.pyplot(fig)
-                        
-                        st.success(f"Processed 1/{len(scenes)} scenes. The remaining scenes would be processed in the background.")
-                        st.session_state.ingest_status[ingest_id]["status"] = "partially_complete"
-                    else:
-                        st.warning("No scenes found matching your criteria. Try adjusting the date range or cloud coverage settings.")
-                
+                    ).add_to(m)
+                    
+                    # Add marker at center
+                    folium.Marker(
+                        [selected_field.center_lat, selected_field.center_lon],
+                        popup=selected_field.name,
+                        icon=folium.Icon(color="green", icon="leaf")
+                    ).add_to(m)
+                    
+                    # Display map
+                    folium_static(m, width=600, height=400)
+                    
                 except Exception as e:
-                    st.error(f"Error in data ingestion: {str(e)}")
-                    logger.exception("Data ingestion error")
+                    st.error(f"Error displaying field boundary: {str(e)}")
+            
+            with col2:
+                # Display field information
+                st.markdown(f"**Name:** {selected_field.name}")
+                st.markdown(f"**Crop Type:** {selected_field.crop_type or 'Not specified'}")
+                st.markdown(f"**Area:** {selected_field.area_hectares:.2f} hectares")
+                st.markdown(f"**Center:** Lat: {selected_field.center_lat:.6f}, Lon: {selected_field.center_lon:.6f}")
+                st.markdown(f"**Created:** {selected_field.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # Actions based on manage_option
+                if manage_option == "Edit Existing Field":
+                    with st.form("edit_field_form"):
+                        st.markdown("### Edit Field")
+                        
+                        new_name = st.text_input("Field Name", value=selected_field.name)
+                        new_crop_type = st.selectbox(
+                            "Crop Type", 
+                            options=[""] + CROP_TYPES, 
+                            index=0 if not selected_field.crop_type else CROP_TYPES.index(selected_field.crop_type) + 1
+                        )
+                        
+                        update_button = st.form_submit_button("Update Field")
+                        
+                        if update_button:
+                            try:
+                                # Update field in database
+                                db = next(get_db())
+                                field_to_update = db.query(Field).filter(Field.id == selected_field.id).first()
+                                
+                                if field_to_update:
+                                    # Check if the new name already exists for another field
+                                    if new_name != selected_field.name:
+                                        existing_field = db.query(Field).filter(Field.name == new_name).first()
+                                        if existing_field:
+                                            st.error(f"Field name '{new_name}' already exists. Please choose a different name.")
+                                            st.stop()
+                                    
+                                    # Update field properties
+                                    field_to_update.name = new_name
+                                    field_to_update.crop_type = new_crop_type if new_crop_type else None
+                                    
+                                    # Commit changes
+                                    db.commit()
+                                    st.success(f"Field '{new_name}' has been updated successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("Field not found in database.")
+                                    
+                            except Exception as e:
+                                st.error(f"Error updating field: {str(e)}")
+                                logger.error(f"Error updating field: {traceback.format_exc()}")
+                
+                elif manage_option == "Delete Field":
+                    st.markdown("### Delete Field")
+                    st.warning(f"Are you sure you want to delete the field '{selected_field.name}'? This action cannot be undone.")
+                    
+                    if st.button("Delete Field", type="primary"):
+                        try:
+                            # Delete field from database
+                            db = next(get_db())
+                            field_to_delete = db.query(Field).filter(Field.id == selected_field.id).first()
+                            
+                            if field_to_delete:
+                                db.delete(field_to_delete)
+                                db.commit()
+                                st.success(f"Field '{selected_field.name}' has been deleted.")
+                                st.rerun()
+                            else:
+                                st.error("Field not found in database.")
+                                
+                        except Exception as e:
+                            st.error(f"Error deleting field: {str(e)}")
+                            logger.error(f"Error deleting field: {traceback.format_exc()}")
     else:
-        st.info("Please select a field boundary using one of the input methods on the left.")
+        st.info("No fields found in the database. Use the 'Add New Field' option to create fields.")
 
-# Ingestion Status
-st.markdown("---")
-st.subheader("Ingestion Status")
-
-if st.session_state.ingest_status:
-    status_data = []
+# Help information
+with st.expander("Help & Information"):
+    st.markdown("""
+    ## How to add a field
     
-    for ingest_id, status in st.session_state.ingest_status.items():
-        status_data.append({
-            "Ingestion ID": ingest_id[:8] + "...",
-            "Field Name": status["field_name"],
-            "Scenes": f"{status['processed_scenes']}/{status['total_scenes']}",
-            "Status": status["status"].replace("_", " ").title(),
-            "Timestamp": status["timestamp"]
-        })
+    ### Option 1: Upload GeoJSON
+    1. Prepare a GeoJSON file with your field boundary
+    2. Select "Upload GeoJSON" from the sidebar
+    3. Upload your file and fill in the field details
+    4. Click "Save Field" to store it in the database
     
-    status_df = pd.DataFrame(status_data)
-    st.dataframe(status_df, use_container_width=True)
-else:
-    st.info("No data ingestion tasks have been created yet.")
-
-# Available Fields
-st.markdown("---")
-st.subheader("Available Fields")
-
-if st.session_state.available_fields:
-    for field_name in st.session_state.available_fields:
-        st.markdown(f"- {field_name}")
-else:
-    st.info("No fields have been processed yet. Start by ingesting data for a field.")
+    ### Option 2: Draw on Map (Coming Soon)
+    In a future update, you'll be able to draw field boundaries directly on the map.
+    
+    ## GeoJSON Format
+    GeoJSON files should contain a polygon or multipolygon geometry representing your field boundary.
+    
+    Example:
+    ```json
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [longitude1, latitude1],
+            [longitude2, latitude2],
+            ...
+            [longitude1, latitude1]
+          ]
+        ]
+      }
+    }
+    ```
+    
+    ## Managing Fields
+    - **Edit Field**: Change a field's name or crop type
+    - **Delete Field**: Permanently remove a field from the database
+    """)
