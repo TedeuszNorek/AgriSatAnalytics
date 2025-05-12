@@ -15,6 +15,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from typing import Dict, List, Any, Optional
+from streamlit.components.v1 import html as st_html
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -608,6 +609,126 @@ if selected_field:
                 st.info("No market signals available. Run the Market Signals analysis to include this in the report.")
     
     with tab2:
+        st.subheader("Expert Trading Report")
+        
+        # Wybór uprawy
+        crop_type = st.selectbox(
+            "Rodzaj uprawy",
+            options=["Wheat", "Corn", "Soybean", "Oats", "Rice"],
+            help="Wybierz rodzaj uprawy dla analizy rynkowej"
+        )
+        
+        # Wybór okresu prognozy
+        forecast_period = st.selectbox(
+            "Horyzont prognozy",
+            options=["Krótkoterminowa", "Średnioterminowa", "Długoterminowa"],
+            help="Wybierz horyzont czasowy dla prognozy rynkowej"
+        )
+        
+        # Collect data for the expert report
+        expert_report_data = {}
+        
+        # Include NDVI time series if available
+        if "ndvi_time_series" in st.session_state and st.session_state.ndvi_time_series:
+            expert_report_data["ndvi_time_series"] = st.session_state.ndvi_time_series
+        
+        # Include yield forecast if available
+        if "yield_forecast_results" in st.session_state and st.session_state.yield_forecast_results:
+            expert_report_data["yield_forecast"] = st.session_state.yield_forecast_results
+        
+        # Include market signals if available
+        if "market_signals_results" in st.session_state and st.session_state.market_signals_results:
+            expert_report_data["market_signals"] = st.session_state.market_signals_results
+        
+        # Report format selection
+        expert_report_format = st.selectbox(
+            "Format raportu",
+            options=["Markdown", "HTML"],
+            key="expert_report_format",
+            help="Wybierz format dla raportu eksperckiego"
+        )
+        
+        # Generate report button
+        if st.button("Generuj raport ekspercki"):
+            with st.spinner("Generowanie raportu eksperckiego..."):
+                try:
+                    # Generate a report ID
+                    report_id = str(uuid.uuid4())
+                    
+                    # Generate expert commodity report
+                    md_content = generate_expert_commodity_report(
+                        selected_field, 
+                        crop_type, 
+                        expert_report_data, 
+                        time_period=forecast_period
+                    )
+                    
+                    # Convert to selected format
+                    if expert_report_format == "HTML":
+                        html_content = markdown_to_html(md_content)
+                        # Create HTML document
+                        final_content = f"""
+                        <html>
+                        <head>
+                            <title>Ekspercki Raport: {selected_field} - {crop_type}</title>
+                            <style>
+                                body {{ font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                                h1 {{ color: #2c3e50; }}
+                                h2 {{ color: #27ae60; border-bottom: 1px solid #eee; padding-bottom: 5px; }}
+                                h3 {{ color: #2980b9; }}
+                                table {{ border-collapse: collapse; width: 100%; }}
+                                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                                th {{ background-color: #f2f2f2; }}
+                                .report-date {{ color: #7f8c8d; font-style: italic; }}
+                                .highlight {{ background-color: #ffffcc; padding: 5px; }}
+                            </style>
+                        </head>
+                        <body>
+                            {html_content}
+                        </body>
+                        </html>
+                        """
+                    else:
+                        final_content = md_content
+                    
+                    # Save report in session state
+                    if selected_field not in st.session_state.generated_reports:
+                        st.session_state.generated_reports[selected_field] = {}
+                    
+                    st.session_state.generated_reports[selected_field][report_id] = {
+                        "id": report_id,
+                        "type": f"Expert Trading Report - {crop_type}",
+                        "format": expert_report_format,
+                        "content": final_content,
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                    
+                    # Show success message
+                    st.success("Raport ekspercki wygenerowany pomyślnie!")
+                    
+                    # Preview the report
+                    st.subheader("Podgląd raportu")
+                    if expert_report_format == "HTML":
+                        try:
+                            st_html(final_content, height=600, scrolling=True)
+                        except:
+                            st.warning("HTML components not available. Displaying raw content.")
+                            st.text_area("HTML Content", final_content, height=300)
+                    else:
+                        st.markdown(md_content)
+                    
+                    # Download button
+                    st.download_button(
+                        label="Pobierz raport",
+                        data=final_content,
+                        file_name=f"raport_ekspercki_{selected_field}_{crop_type}.{'html' if expert_report_format == 'HTML' else 'md'}",
+                        mime="text/html" if expert_report_format == "HTML" else "text/markdown"
+                    )
+                except Exception as e:
+                    st.error(f"Błąd podczas generowania raportu: {str(e)}")
+                    st.exception(e)
+                    
+    with tab3:
         st.subheader("View Reports")
         
         # Get reports for this field
@@ -643,7 +764,7 @@ if selected_field:
                 st.markdown("### Report Preview")
                 
                 if report["format"] == "HTML":
-                    st.components.v1.html(report["content"], height=600, scrolling=True)
+                    st_html(report["content"], height=600, scrolling=True)
                 elif report["format"] == "PDF":
                     st.warning("PDF preview not available. Use the download button to view the PDF.")
                 else:
