@@ -18,7 +18,8 @@ from matplotlib.figure import Figure
 
 from database import get_db, Field, YieldForecast, TimeSeries
 from utils.data_access import get_sentinel_hub_config
-from models.yield_forecast import YieldForecastModel
+# Temporarily disable LightGBM import until system dependencies are resolved
+# from models.yield_forecast import YieldForecastModel
 from utils.visualization import (
     create_multi_temporal_figure,
     fig_to_base64
@@ -141,11 +142,11 @@ if selected_field:
         # Display loading message
         with st.spinner(f"Generating {forecast_type} for {selected_field.name}..."):
             try:
-                # Initialize yield forecast model
-                model = YieldForecastModel()
+                # Temporarily using mockup data instead of initializing the YieldForecastModel 
+                # due to system dependency issues with LightGBM
                 
-                # Simulate forecast generation since we don't have real data yet
-                st.info("This is a demonstration of the yield forecast functionality.")
+                # Display info about the mockup
+                st.info("This is a demonstration of the yield forecast functionality using mockup data.")
                 
                 # Create forecast visualization
                 st.markdown("## Yield Forecast Results")

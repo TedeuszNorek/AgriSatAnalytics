@@ -234,23 +234,68 @@ elif data_option == "Draw on Map" and manage_option == "Add New Field":
     """)
     
     # Wyświetl mapę
-    map_data = folium_static(m, width=800, height=500, returned_objects=["last_object_id", "last_draw_action"])
+    folium_static(m, width=800, height=500)
+    
+    # Śledzimy stan rysowania przez sesję streamlit
+    if 'drawn_polygon' not in st.session_state:
+        st.session_state.drawn_polygon = None
+    
+    # Dostępne akcje rysowania
+    draw_actions = ["polygon", "rectangle", "circle", "marker", "clear"]
+    selected_action = st.selectbox("Wybierz narzędzie rysowania", options=draw_actions)
+    
+    draw_button = st.button("Symuluj narysowanie pola")
     
     # Przetwarzanie narysowanych obiektów
-    if map_data and "last_draw_action" in map_data and map_data["last_draw_action"]:
-        # Pobranie narysowanych cech
-        # UWAGA: W rzeczywistej implementacji byłby tutaj skrypt JavaScript przechwytujący dane z rysowania
+    if draw_button:
         # W tej demonstracji generujemy przykładowy obiekt GeoJSON jako zastępstwo
+        # ponieważ rzeczywiste przechwytywanie rysowania wymaga integracji JS z Streamlit
         
-        draw_action = map_data["last_draw_action"]
+        # Przykładowy polygon dla Warszawy
+        if selected_action in ["polygon", "rectangle"]:
+            st.session_state.drawn_polygon = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [21.0122, 52.2297],  # Warszawa centrum
+                        [21.0322, 52.2397],
+                        [21.0522, 52.2297],
+                        [21.0322, 52.2197],
+                        [21.0122, 52.2297]
+                    ]]
+                },
+                "properties": {}
+            }
+            st.success("Pole zostało narysowane! Możesz kontynuować poniżej.")
+        elif selected_action == "clear":
+            st.session_state.drawn_polygon = None
+            st.info("Usunięto narysowane pole.")
+        else:
+            st.warning(f"Akcja '{selected_action}' nie jest obecnie obsługiwana w tym demo.")
+    
+    # Sprawdź czy mamy narysowany polygon
+    if st.session_state.drawn_polygon:
+        # Generuj przykładowy GeoJSON dla narysowanego kształtu
+        # W prawdziwej implementacji dane byłyby przekazane z mapy
         
-        if draw_action == "draw:created" or draw_action == "draw:edited":
-            # Generuj przykładowy GeoJSON dla narysowanego kształtu
-            # W prawdziwej implementacji dane byłyby przekazane z mapy
-            center_lat, center_lon = lat, lon
-            
-            # Losowe przesunięcie od środka dla symulacji rysowania
-            offset_lat = random.uniform(-0.005, 0.005)
+        # Wykorzystaj współrzędne z narysowanego poligonu
+        coords = st.session_state.drawn_polygon["geometry"]["coordinates"][0]
+        
+        # Oblicz środek poligonu (średnia współrzędnych)
+        center_lon = sum(coord[0] for coord in coords) / len(coords)
+        center_lat = sum(coord[1] for coord in coords) / len(coords)
+        
+        # Oblicz przybliżoną powierzchnię
+        from shapely.geometry import Polygon
+        import pyproj
+        from functools import partial
+        from shapely.ops import transform
+        
+        polygon = Polygon(coords)
+        geod = pyproj.Geod(ellps="WGS84")
+        area_m2 = abs(geod.geometry_area_perimeter(polygon)[0])
+        area_hectares = area_m2 / 10000  # Konwersja na hektary
             offset_lon = random.uniform(-0.005, 0.005)
             
             # Tworzymy prostą geomerrię wokół wybranego punktu
