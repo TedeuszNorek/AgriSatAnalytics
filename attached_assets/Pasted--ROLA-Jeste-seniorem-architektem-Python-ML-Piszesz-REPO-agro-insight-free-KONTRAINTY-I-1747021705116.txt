@@ -1,0 +1,128 @@
+## ROLA
+Jesteś seniorem-architektem Python/ML. Piszesz REPO `agro-insight-free`.
+
+## KONTRAINTY I VIBE-CODING
+- Tylko darmowe zasoby: Copernicus Data Space & sentinelhub-py (plan Basic), AWS-S3 public Sentinel-2 bucket.
+- Python ≥ 3.10, FastAPI + Uvicorn (async, type-hints), Poetry, Black, Ruff, pre-commit.
+- Kod autoodświeżany (`uvicorn --reload`), modularny (clean architecture), Pydantic-models, docstrings Google-style.
+- Ciągłe testy Pytest + Github Actions.
+- Retries: `tenacity` z exponential-backoff, limit 8 równoległych requestów, globalny semafor by **nie przekroczyć** 30 req/min (Copernicus free tier).
+- Local cache (`diskcache`) by zmniejszyć zużycie PU/quota; sprawdzaj `ETag` zanim pobierzesz.
+- Po błędach 429/5xx – automatyczny restore & resume, zapis checkpointów (lista UUID scen).
+- Debug-dashboard `/debug` z statsami (prometheus-client) i live-logs (sse-starlette).
+
+## FUNKCJONALNOŚCI BACKEND
+1. **/ingest**  
+   - input: geojson pola lub ISO kod kraju  
+   - pobiera Sentinel-2 L2A z ostatnich 24 mies., wycina ROI, liczy NDVI, EVI, NDWI; zapis GeoTIFF + metadane(STAC) do `data/`.
+2. **/analytics/yield**  
+   - trenowanie LightGBM + Prophet na NDVI-chronology → prognoza plonu (t/ha) 1-3 mies. naprzód.  
+   - uwzględnij pogodę z Open-Meteo (free) przez async-gather.
+3. **/analytics/market**  
+   - pobiera ceny kontraktów futures (yfinance).  
+   - korelacja NDVI-anomalie ↔ ceny (Pearson, Granger).  
+   - reguły heurystyczne → sygnały LONG/SHORT; zwraca JSON + confidence.
+4. **/report**  
+   - generuje semantyczny PDF/Markdown: streszczenie anomalii, predykcja plonu, rekomendacja giełdowa, link do danych.
+   - wykorzystaj `jinja2` + `weasyprint`.
+5. **/health** – liveness + ślad PU/req/min.
+
+## FRONT (opcjonalnie)
+Vite + Vue3, Tailwind minimalistyczny; dashboard mapowy (Leaflet) + wykresy Plotly.
+
+## DANE WYJŚCIOWE/API
+```json
+{
+  "field_id": "uuid",
+  "ndvi_series": [...],
+  "yield_forecast_t_ha": { "2025-06-01": 7.3, "2025-07-01": 6.9 },
+  "market_signal": { "asset":"ZW", "action":"LONG", "confidence":0.76 },
+  "report_url": "/reports/uuid.pdf"
+}
+ANALITYKA DO ZAIMPLEMENTOWANIA
+Δ-NDVI < -0.15 przez ≥ 2 okresy ⇒ alert o suszy.
+
+Rolling-variance NDVI ⇒ wykrywanie niespójności zasiewu.
+
+PCA + K-means na wielosezonowej macierzy indeksów ⇒ klastry zdrowia pól.
+
+Feature importance LightGBM → top pasm Sentinel-2 (B5, B8A) wpływających na plon.
+
+DOBRE PRAKTYKI DEV-OPS
+.env do kluczy; nigdy w repo.
+
+Logowanie strukturalne (json-logger); poziom DEBUG osobny file-handler.
+
+Docker-compose: app + redis-queue.
+
+Komendy make format, make test, make ingest-demo.
+
+OUT OF SCOPE
+Nie używaj płatnych API (no Google EE, no Planet). Nie zapisuj danych osobowych. Koniec.
+
+yaml
+Kopiuj
+Edytuj
+
+---
+
+## Dlaczego te funkcje i jak je wykorzystać?
+
+| Blok funkcjonalny | Co robi | Jaka analityka dla „nie-rolnika” |
+|-------------------|---------|-----------------------------------|
+| **Pobór & NDVI** | Automatycznie pobiera i przetwarza obrazy w ROI | Rozumiesz „zieloność” upraw; spadek NDVI ⇢ potencjalny niższy plon |
+| **Yield → Price** | ML estymuje plon → koreluje z cenami futures | Wczesny „supply shock” ⇒ decyzja inwestycyjna na CBOT |
+| **Anomaly alerts** | Δ-NDVI, EVI, NDWI outliers | Ryzyko suszy/powodzi ⇢ hedging lub zmiana ekspozycji sektorowej |
+| **Cluster health** | PCA + K-means | Segmentacja portfela pól/spółek (np. notowanych agro firm) |
+| **Semantyczny raport** | LLM (np. GPT-4o) sumaruje metryki | Natychmiast czytelny „executive summary” bez znajomości agronomii |
+
+---
+
+## Mechanizmy „anti-ban” i auto-recover
+* **Limiter** — semafor + tenacity, trzymasz się < 30 req/min i < 10 PU/min (Copernicus free)  (wiarygodność 9/10).  
+* **Caching** — hash zapytania → dysk; przy kolejnym wywołaniu skip fetchu.  
+* **Checkpoint** — lista UUID pobranych scen; po crashu wznawiasz od ostatniego.  
+* **Fallback** — gdy OData v1 zawiedzie, przełącz na Sentinel-AWS S3 (public bucket)  (8/10).  
+* **Exponential backoff** — best practice dla API 2025  (5/10).  
+* **Async-batch size** automatycznie redukowany, jeśli > 1 % odpowiedzi to HTTP 429  (9/10).
+
+---
+
+## Peer-reviewed podbudowa ML
+* **LightGBM + NDVI** – potwierdzona skuteczność w prognozie plonu pszenicy  (Agronomy 2025, 7/10).  
+* **Pipeline automatyczny nad Sentinel-2** – opis frameworka webowego dla małych gospodarstw  (Remote Sens. Apps 2025, 6/10).  
+* **Pixel-level yield mapping** – dowodzi, że graniczne pasma B5/B8A dominują w modelu  (Agric. Syst. 2024, 9/10).  
+* **Focal-TSMP** – prognoza zdrowia roślin z indeksów sat. użyta do drought-nowcastu  (GMD 2024, 9/10).  
+* **Model wysokiej rozdzielczości dla Europy** – predykcja plonu pszenicy na poziomie 30 m  (J. Geomatics 2025, 8/10).
+
+---
+
+## Ocena wiarygodności źródeł  
+| ID | Źródło skrótem | Typ | Ocena (0–10) |
+|----|----------------|------|--------------|
+| turn0search8 | Copernicus Docs (Quotas) | oficjalna dokumentacja | **9** |
+| turn0search1 | Sentinel Hub (Rate Limiting) | oficjalna dokumentacja | **9** |
+| turn0search6 | AWS S3 Sentinel-2 bucket | strona usługodawcy | **8** |
+| turn0search4 | Zuplo Blog (rate-limit best practices) | blog techniczny | **5** |
+| turn1search1 | Agronomy MDPI 2025 | artykuł peer-reviewed | **7** |
+| turn1search0 | Remote Sensing Applications 2025 | artykuł peer-reviewed | **6** |
+| turn1search6 | Agricultural Systems 2024 | artykuł peer-reviewed | **9** |
+| turn1search9 | Geoscientific Model Development 2024 | artykuł peer-reviewed | **9** |
+| turn1search10 | Journal of Geomatics 2025 | artykuł peer-reviewed | **8** |
+
+---
+
+**Co dalej?**  
+1. Wrzuć prompt do Replit → dostaniesz repo z FastAPI, sklonuj lokalnie, utwórz konto w Copernicus Data Space (free).  
+2. Ustaw `.env` (client_id, client_secret).  
+3. `make ingest-demo --bbox="POLYGON((...))"` uruchomi pipeline demo.  
+4. Sprawdź `/docs`, `/debug`, `/report/{id}`.  
+
+Gdybyś potrzebował rozwinięcia któregoś modułu (np. pipeline ML lub konfiguracja CI), daj znać!
+
+
+
+
+
+
+
