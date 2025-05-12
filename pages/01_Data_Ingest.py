@@ -6,6 +6,8 @@ import json
 import logging
 import datetime
 import traceback
+import uuid
+import random
 from typing import Dict, List, Any, Optional, Tuple
 
 import streamlit as st
@@ -13,8 +15,11 @@ import pandas as pd
 import numpy as np
 import folium
 import geopandas as gpd
+import matplotlib.pyplot as plt
 from streamlit_folium import folium_static
+from folium.plugins import Draw, FeatureGroup
 from shapely.geometry import Polygon, shape
+from streamlit.components.v1 import html
 
 from database import get_db, Field
 from utils.data_access import (
@@ -22,6 +27,11 @@ from utils.data_access import (
     parse_geojson, 
     get_bbox_from_polygon,
     get_country_boundary
+)
+from utils.mock_data import (
+    generate_mock_field_data,
+    get_mock_field_boundary,
+    save_mock_data
 )
 from config import (
     SENTINEL_HUB_CLIENT_ID,
@@ -51,7 +61,7 @@ with st.sidebar:
     st.markdown("## Data Options")
     data_option = st.radio(
         "Choose Data Source",
-        ["Upload GeoJSON", "Draw on Map", "Import from Database"]
+        ["Upload GeoJSON", "Draw on Map", "Import from Database", "Generate Test Data"]
     )
     
     st.markdown("## Field Management")
@@ -59,6 +69,16 @@ with st.sidebar:
         "Manage Fields",
         ["Add New Field", "Edit Existing Field", "Delete Field"]
     )
+    
+    # Dodaj przycisk czyszczenia cache, jeśli mamy dane w sesji
+    if "drawn_features" in st.session_state or "generated_field" in st.session_state:
+        if st.button("Clear Cache Data", type="secondary"):
+            if "drawn_features" in st.session_state:
+                del st.session_state["drawn_features"]
+            if "generated_field" in st.session_state:
+                del st.session_state["generated_field"]
+            st.success("Cache data cleared!")
+            st.rerun()
 
 # Main content
 if data_option == "Upload GeoJSON" and manage_option == "Add New Field":
@@ -169,15 +189,333 @@ if data_option == "Upload GeoJSON" and manage_option == "Add New Field":
 
 elif data_option == "Draw on Map" and manage_option == "Add New Field":
     st.markdown("## Draw Field Boundary")
-    st.info("This feature is under development. Please use the GeoJSON upload option.")
     
-    # Placeholder for future implementation
+    # Inicjalizacja stanu sesji dla przechowywania narysowanych obiektów
+    if "drawn_features" not in st.session_state:
+        st.session_state.drawn_features = None
+    
+    # Wybór lokalizacji początkowej
+    col1, col2 = st.columns(2)
+    with col1:
+        default_lat = 50.0611
+        default_lon = 19.9383
+        lat = st.number_input("Latitude", value=default_lat, format="%.6f", help="Enter the latitude for map center")
+    with col2:
+        lon = st.number_input("Longitude", value=default_lon, format="%.6f", help="Enter the longitude for map center")
+    
+    # Tworzenie mapy z narzędziami do rysowania
+    m = folium.Map(location=[lat, lon], zoom_start=13)
+    
+    # Dodaj kontrolkę rysowania
+    draw = Draw(
+        export=True,
+        position='topleft',
+        draw_options={
+            'polyline': False,
+            'rectangle': True,
+            'polygon': True,
+            'circle': False,
+            'marker': False,
+            'circlemarker': False
+        },
+        edit_options={
+            'featureGroup': None
+        }
+    )
+    draw.add_to(m)
+    
+    # Dodaj instrukcje
     st.markdown("""
-    In a future version, you will be able to:
-    1. Draw field boundaries directly on a map
-    2. Edit the shape interactively
-    3. Save the drawn field to the database
+    ### Drawing Instructions:
+    1. Use the draw tools on the left side of the map to draw a field boundary
+    2. You can use the polygon tool (▲) for custom shapes or rectangle tool (□) for rectangular fields
+    3. Once drawn, click on the edit button (✎) to modify your shape if needed
+    4. When finished, proceed to fill in the field details below
     """)
+    
+    # Wyświetl mapę
+    map_data = folium_static(m, width=800, height=500, returned_objects=["last_object_id", "last_draw_action"])
+    
+    # Przetwarzanie narysowanych obiektów
+    if map_data and "last_draw_action" in map_data and map_data["last_draw_action"]:
+        # Pobranie narysowanych cech
+        # UWAGA: W rzeczywistej implementacji byłby tutaj skrypt JavaScript przechwytujący dane z rysowania
+        # W tej demonstracji generujemy przykładowy obiekt GeoJSON jako zastępstwo
+        
+        draw_action = map_data["last_draw_action"]
+        
+        if draw_action == "draw:created" or draw_action == "draw:edited":
+            # Generuj przykładowy GeoJSON dla narysowanego kształtu
+            # W prawdziwej implementacji dane byłyby przekazane z mapy
+            center_lat, center_lon = lat, lon
+            
+            # Losowe przesunięcie od środka dla symulacji rysowania
+            offset_lat = random.uniform(-0.005, 0.005)
+            offset_lon = random.uniform(-0.005, 0.005)
+            
+            # Tworzymy prostą geomerrię wokół wybranego punktu
+            coordinates = [
+                [center_lon + offset_lon - 0.003, center_lat + offset_lat - 0.002],
+                [center_lon + offset_lon + 0.003, center_lat + offset_lat - 0.002],
+                [center_lon + offset_lon + 0.003, center_lat + offset_lat + 0.002],
+                [center_lon + offset_lon - 0.003, center_lat + offset_lat + 0.002],
+                [center_lon + offset_lon - 0.003, center_lat + offset_lat - 0.002]  # Zamykamy wielokąt
+            ]
+            
+            # Tworzymy GeoJSON
+            geojson_data = {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [coordinates]
+                }
+            }
+            
+            # Zapisz do stanu sesji
+            st.session_state.drawn_features = geojson_data
+            st.success("Field boundary drawn successfully! Fill in the details below to save.")
+    
+    # Wyświetl formularz tylko wtedy, gdy użytkownik narysował kształt
+    if st.session_state.drawn_features:
+        # Ekstrakcja danych z narysowanego obiektu
+        try:
+            geojson_data = st.session_state.drawn_features
+            
+            # Parse GeoJSON and extract polygon
+            polygon, crs = parse_geojson(geojson_data)
+            bbox = get_bbox_from_polygon(polygon)
+            
+            # Calculate center and area
+            centroid = polygon.centroid
+            center_lat, center_lon = centroid.y, centroid.x
+            
+            # Convert area to hectares (assuming coordinates are in degrees)
+            area_m2 = polygon.area * 111000 * 111000  # Approximate conversion from degrees to meters
+            area_hectares = area_m2 / 10000  # Convert m² to hectares
+            
+            # Field details form
+            st.markdown("### Field Details")
+            
+            with st.form("drawn_field_details_form"):
+                field_name = st.text_input("Field Name", value=f"Field {datetime.datetime.now().strftime('%Y%m%d')}")
+                crop_type = st.selectbox("Crop Type", options=[""] + CROP_TYPES)
+                
+                # Display calculated area and coordinates
+                st.markdown(f"**Calculated Area:** {area_hectares:.2f} hectares")
+                st.markdown(f"**Center Coordinates:** Lat: {center_lat:.6f}, Lon: {center_lon:.6f}")
+                
+                # Additional notes
+                notes = st.text_area("Notes", placeholder="Enter any additional information about this field")
+                
+                # Submit button
+                submit_button = st.form_submit_button("Save Field")
+                
+                if submit_button:
+                    try:
+                        # Create database session
+                        db = next(get_db())
+                        
+                        # Check if field name already exists
+                        existing_field = db.query(Field).filter(Field.name == field_name).first()
+                        
+                        if existing_field:
+                            st.error(f"Field name '{field_name}' already exists. Please choose a different name.")
+                        else:
+                            # Create new field
+                            new_field = Field(
+                                name=field_name,
+                                geojson=json.dumps(geojson_data),
+                                center_lat=float(center_lat),
+                                center_lon=float(center_lon),
+                                area_hectares=float(area_hectares),
+                                crop_type=crop_type if crop_type else None
+                            )
+                            
+                            # Add and commit to database
+                            db.add(new_field)
+                            db.commit()
+                            
+                            # Clear the session state
+                            st.session_state.drawn_features = None
+                            
+                            st.success(f"Field '{field_name}' has been saved successfully!")
+                            st.balloons()
+                            st.rerun()
+                            
+                    except Exception as e:
+                        st.error(f"Error saving field: {str(e)}")
+                        logger.error(f"Error saving field: {traceback.format_exc()}")
+                        
+        except Exception as e:
+            st.error(f"Error processing drawn boundary: {str(e)}")
+            logger.error(f"Error processing drawn boundary: {traceback.format_exc()}")
+    else:
+        st.info("Draw a field boundary on the map using the drawing tools to continue.")
+        
+elif data_option == "Generate Test Data" and manage_option == "Add New Field":
+    st.markdown("## Generate Test Field Data")
+    st.info("This option generates mock field data for testing and demonstration purposes.")
+    
+    # Inicjalizacja stanu sesji dla wygenerowanych danych
+    if "generated_field" not in st.session_state:
+        st.session_state.generated_field = None
+    
+    # Formularz do generowania danych testowych
+    with st.form("generate_test_data_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            field_name = st.text_input("Field Name", value=f"Test Field {datetime.datetime.now().strftime('%Y%m%d')}")
+            crop_type = st.selectbox("Crop Type", options=CROP_TYPES)
+            area_hectares = st.slider("Area (hectares)", min_value=1.0, max_value=50.0, value=10.0, step=0.5)
+        
+        with col2:
+            lat = st.number_input("Center Latitude", value=50.0611, format="%.6f")
+            lon = st.number_input("Center Longitude", value=19.9383, format="%.6f")
+            include_imagery = st.checkbox("Include mock satellite imagery", value=True)
+        
+        generate_button = st.form_submit_button("Generate Test Field")
+        
+        if generate_button:
+            try:
+                # Generowanie granic pola
+                geojson_data = get_mock_field_boundary(lat, lon, area_hectares)
+                
+                # Generowanie danych testowych
+                field_data = generate_mock_field_data()
+                
+                # Dodanie geojson do danych
+                field_data["geojson"] = geojson_data
+                
+                # Zapisz do sesji
+                st.session_state.generated_field = {
+                    "name": field_name,
+                    "crop_type": crop_type,
+                    "center_lat": lat,
+                    "center_lon": lon,
+                    "area_hectares": area_hectares,
+                    "geojson": geojson_data,
+                    "data": field_data
+                }
+                
+                st.success("Test field data generated successfully!")
+                
+            except Exception as e:
+                st.error(f"Error generating test data: {str(e)}")
+                logger.error(f"Error generating test data: {traceback.format_exc()}")
+    
+    # Wyświetl wygenerowane dane, jeśli dostępne
+    if st.session_state.generated_field:
+        field = st.session_state.generated_field
+        
+        st.markdown("### Generated Field Preview")
+        
+        # Pokaż mapę z granicami pola
+        m = folium.Map(location=[field["center_lat"], field["center_lon"]], zoom_start=14)
+        
+        # Dodaj GeoJSON do mapy
+        folium.GeoJson(
+            field["geojson"],
+            name="Field Boundary",
+            style_function=lambda x: {
+                'fillColor': '#28a745',
+                'color': '#28a745',
+                'weight': 2,
+                'fillOpacity': 0.4
+            }
+        ).add_to(m)
+        
+        # Dodaj marker w środku
+        folium.Marker(
+            [field["center_lat"], field["center_lon"]],
+            popup=field["name"],
+            icon=folium.Icon(color="green", icon="leaf")
+        ).add_to(m)
+        
+        # Wyświetl mapę
+        folium_static(m, width=700, height=400)
+        
+        # Przyciski akcji
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Save to Database", type="primary"):
+                try:
+                    # Create database session
+                    db = next(get_db())
+                    
+                    # Check if field name already exists
+                    existing_field = db.query(Field).filter(Field.name == field["name"]).first()
+                    
+                    if existing_field:
+                        st.error(f"Field name '{field['name']}' already exists. Please choose a different name.")
+                    else:
+                        # Create new field
+                        new_field = Field(
+                            name=field["name"],
+                            geojson=json.dumps(field["geojson"]),
+                            center_lat=float(field["center_lat"]),
+                            center_lon=float(field["center_lon"]),
+                            area_hectares=float(field["area_hectares"]),
+                            crop_type=field["crop_type"]
+                        )
+                        
+                        # Add and commit to database
+                        db.add(new_field)
+                        db.commit()
+                        
+                        # Zapisz dane do pliku
+                        field_dir = os.path.join("data", "mock")
+                        os.makedirs(field_dir, exist_ok=True)
+                        
+                        with open(os.path.join(field_dir, f"{field['name'].replace(' ', '_').lower()}.json"), "w") as f:
+                            json.dump(field["data"], f, indent=2)
+                        
+                        # Clear the session state
+                        st.session_state.generated_field = None
+                        
+                        st.success(f"Field '{field['name']}' has been saved to database and mock data stored!")
+                        st.balloons()
+                        st.rerun()
+                        
+                except Exception as e:
+                    st.error(f"Error saving field: {str(e)}")
+                    logger.error(f"Error saving field: {traceback.format_exc()}")
+        
+        with col2:
+            if st.button("Regenerate Data", type="secondary"):
+                # Zachowaj te same parametry, ale wygeneruj nowe dane
+                field_data = generate_mock_field_data()
+                geojson_data = get_mock_field_boundary(field["center_lat"], field["center_lon"], field["area_hectares"])
+                
+                # Aktualizuj sesję
+                st.session_state.generated_field["data"] = field_data
+                st.session_state.generated_field["geojson"] = geojson_data
+                
+                st.success("Test data regenerated successfully!")
+                st.rerun()
+                
+        # Pokaż przykładowy wykres wygenerowanych danych
+        if "ndvi_time_series" in field["data"]:
+            st.markdown("### Sample NDVI Time Series")
+            
+            # Przekształć dane do wykresu
+            ndvi_data = field["data"]["ndvi_time_series"]
+            dates = list(ndvi_data.keys())
+            values = list(ndvi_data.values())
+            
+            # Stwórz wykres
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(dates, values, marker='o', linestyle='-', color='green')
+            ax.set_title(f"NDVI Time Series for {field['name']}")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("NDVI")
+            ax.grid(True, alpha=0.3)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            
+            st.pyplot(fig)
 
 elif data_option == "Import from Database" or manage_option in ["Edit Existing Field", "Delete Field"]:
     st.markdown("## Manage Existing Fields")

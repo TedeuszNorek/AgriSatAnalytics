@@ -30,4 +30,5 @@ dependencies = [
     "sqlalchemy>=2.0.40",
     "psycopg2-binary>=2.9.10",
     "alembic>=1.15.2",
+    "trafilatura>=2.0.0",
 ]

@@ -1,0 +1,2984 @@
+Skip to main content
+Planet Docs
+DOCUMENTATION
+Platform
+Develop
+Data
+Guides
+Help
+Log In
+Sign Up
+
+APIs
+
+Data
+
+Items and Assets
+Item Search
+STAC Support (Beta)
+API Reference
+Features
+
+Subscriptions
+
+Basemaps
+
+Orders
+
+Tiles
+
+Reports
+
+Analytics
+
+Quota
+
+Tasking
+
+Flexible Tasking
+Assured Tasking
+Notification and History
+Tasking Archive
+API Reference
+Authentication
+Errors
+Rate Limiting
+SDKs and Developer Resources
+Evalscripts
+
+Developer Changelog
+DevelopAPIsTaskingAPI Reference
+API Reference
+Orders
+Imaging Windows
+get
+Retrieve Imaging Windows
+post
+Search Imaging Windows
+post
+Create Asynchronous Imaging Windows Search Request
+get
+Retrieve Asynchronous Imaging Windows Search Results
+Captures
+Bulk Processes
+Order History
+Preferences
+Pricing
+redocly logoAPI docs by Redocly
+Planet Tasking API (2.0)
+Download OpenAPI specification:Download
+
+High resolution satellite imagery as a service
+
+Orders
+A tasking order is a request to capture new imagery of a specific area of interest (AOI) within a given time of interest (TOI). Tasking orders are not to be confused with Scene and Basemap Orders offered by the Planet Orders API.
+
+List Tasking Orders
+Retrieve all tasking orders you have access to. This includes all orders created within your organization.
+
+Authorizations:
+Basic
+query Parameters
+capture_assessment_invalid_count__gt	
+number
+Filter by the number of captures assessed invalid to be greater than the given value
+
+capture_assessment_invalid_count__gte	
+number
+Filter by the number of captures assessed invalid to be greater than or equal to the given value
+
+capture_assessment_invalid_count__lt	
+number
+Filter by the number of captures assessed invalid to be less than the given value
+
+capture_assessment_invalid_count__lte	
+number
+Filter by the number of captures assessed invalid to be less than or equal to the given value
+
+capture_assessment_invalid_count	
+number
+Filter by the number of captures assessed invalid to be equal to the given value
+
+capture_assessment_success_count__gt	
+number
+Filter by the number of captures assessed successful to be greater than the given value
+
+capture_assessment_success_count__gte	
+number
+Filter by the number of captures assessed successful to be greater than or equal to the given value
+
+capture_assessment_success_count__lt	
+number
+Filter by the number of captures assessed successful to be less than the given value
+
+capture_assessment_success_count__lte	
+number
+Filter by the number of captures assessed successful to be less than or equal to the given value
+
+capture_assessment_success_count	
+number
+Filter by the number of captures assessed successful to be equal to the given value
+
+capture_count__gt	
+number
+Filter by the capture count to be greater than the given value
+
+capture_count__gte	
+number
+Filter by the capture count to be greater than or equal to the given value
+
+capture_count__lt	
+number
+Filter by the capture count to be less than the given value
+
+capture_count__lte	
+number
+Filter by the capture count to be less than or equal to the given value
+
+capture_count	
+number
+Filter by the capture count to be equal to the given value
+
+capture_status_failed_count__gt	
+number
+Filter by the number of failed captures to be greater than the given value
+
+capture_status_failed_count__gte	
+number
+Filter by the number of failed captures to be greater than or equal to the given value
+
+capture_status_failed_count__lt	
+number
+Filter by the number of failed captures to be less than the given value
+
+capture_status_failed_count__lte	
+number
+Filter by the number of failed captures to be less than or equal to the given value
+
+capture_status_failed_count	
+number
+Filter by the number of failed captures to be equal to the given value
+
+capture_status_processing_count__gt	
+number
+Filter by the number of processing captures to be greater than the given value
+
+capture_status_processing_count__gte	
+number
+Filter by the number of processing captures to be greater than or equal to the given value
+
+capture_status_processing_count__lt	
+number
+Filter by the number of processing captures to be less than the given value
+
+capture_status_processing_count__lte	
+number
+Filter by the number of processing captures to be less than or equal to the given value
+
+capture_status_processing_count	
+number
+Filter by the number of processing captures to be equal to the given value
+
+capture_status_published_count__gt	
+number
+Filter by the number of published captures to be greater than the given value
+
+capture_status_published_count__gte	
+number
+Filter by the number of published captures to be greater than or equal to the given value
+
+capture_status_published_count__lt	
+number
+Filter by the number of published captures to be less than the given value
+
+capture_status_published_count__lte	
+number
+Filter by the number of published captures to be less than or equal to the given value
+
+capture_status_published_count	
+number
+Filter by the number of published captures to be equal to the given value
+
+capture_status_deriving_count__gt	
+number
+Filter by the capture status deriving count to be greater than the given value
+
+capture_status_deriving_count__gte	
+number
+Filter by the capture status deriving count to be greater than or equal to the given value
+
+capture_status_deriving_count__lt	
+number
+Filter by the capture status deriving count to be less than the given value
+
+capture_status_deriving_count__lte	
+number
+Filter by the capture status deriving count to be less than or equal to the given value
+
+capture_status_deriving_count	
+number
+Filter by the capture status deriving count to be equal to the given value
+
+capture_status_queued_count__gt	
+number
+Filter by the number of queued captures to be greater than the given value
+
+capture_status_queued_count__gte	
+number
+Filter by the number of queued captures to be greater than or equal to the given value
+
+capture_status_queued_count__lt	
+number
+Filter by the number of queued captures to be less than the given value
+
+capture_status_queued_count__lte	
+number
+Filter by the number of queued captures to be less than or equal to the given value
+
+capture_status_queued_count	
+number
+Filter by the number of queued captures to be equal to the given value
+
+cloud_threshold__gt	
+number
+Filter by the cloud threshold to be greater than the given value
+
+cloud_threshold__gte	
+number
+Filter by the cloud threshold to be greater than or equal to the given value
+
+cloud_threshold__lt	
+number
+Filter by the cloud threshold to be less than the given value
+
+cloud_threshold__lte	
+number
+Filter by the cloud threshold to be less than or equal to the given value
+
+cloud_threshold	
+number
+Filter by the cloud threshold to be equal to the given value
+
+created_by	
+string
+Filter by the created by to be equal to the given value
+
+created_by__in	
+string
+Filter by the created by to be one of the given values (comma-separated)
+
+created_by__icontains	
+string
+Filter by the created by to contain the given value (case-insensitive)
+
+created_by__ne	
+string
+Filter by the created by to not be equal to the given value
+
+created_by__notin	
+string
+Filter by the created by to not be one of the given values (comma-separated)
+
+created_time__gt	
+string <date-time>
+Filter by the created time to be greater than the given value
+
+created_time__gte	
+string <date-time>
+Filter by the created time to be greater than or equal to the given value
+
+created_time__lt	
+string <date-time>
+Filter by the created time to be less than the given value
+
+created_time__lte	
+string <date-time>
+Filter by the created time to be less than or equal to the given value
+
+created_time	
+string <date-time>
+Filter by the created time to be equal to the given value
+
+end_time__gt	
+string <date-time>
+Filter by the end time to be greater than the given value
+
+end_time__gte	
+string <date-time>
+Filter by the end time to be greater than or equal to the given value
+
+end_time__lt	
+string <date-time>
+Filter by the end time to be less than the given value
+
+end_time__lte	
+string <date-time>
+Filter by the end time to be less than or equal to the given value
+
+end_time	
+string <date-time>
+Filter by the end time to be equal to the given value
+
+estimated_quota_cost__gt	
+number
+Filter by the estimated quota cost to be greater than the given value
+
+estimated_quota_cost__gte	
+number
+Filter by the estimated quota cost to be greater than or equal to the given value
+
+estimated_quota_cost__lt	
+number
+Filter by the estimated quota cost to be less than the given value
+
+estimated_quota_cost__lte	
+number
+Filter by the estimated quota cost to be less than or equal to the given value
+
+estimated_quota_cost	
+number
+Filter by the estimated quota cost to be equal to the given value
+
+exclusivity_days__gt	
+number
+Filter by the exclusivity days to be greater than the given value
+
+exclusivity_days__gte	
+number
+Filter by the exclusivity days to be greater than or equal to the given value
+
+exclusivity_days__lt	
+number
+Filter by the exclusivity days to be less than the given value
+
+exclusivity_days__lte	
+number
+Filter by the exclusivity days to be less than or equal to the given value
+
+exclusivity_days	
+number
+Filter by the exclusivity days to be equal to the given value
+
+fulfilled_sqkm__gt	
+number
+Filter by the fulfilled square kilometers to be greater than the given value
+
+fulfilled_sqkm__gte	
+number
+Filter by the fulfilled square kilometers to be greater than or equal to the given value
+
+fulfilled_sqkm__lt	
+number
+Filter by the fulfilled square kilometers to be less than the given value
+
+fulfilled_sqkm__lte	
+number
+Filter by the fulfilled square kilometers to be less than or equal to the given value
+
+fulfilled_sqkm	
+number
+Filter by the fulfilled square kilometers to be equal to the given value
+
+fulfilled_time__gt	
+string <date-time>
+Filter by the fulfilled time to be greater than the given value
+
+fulfilled_time__gte	
+string <date-time>
+Filter by the fulfilled time to be greater than or equal to the given value
+
+fulfilled_time__lt	
+string <date-time>
+Filter by the fulfilled time to be less than the given value
+
+fulfilled_time__lte	
+string <date-time>
+Filter by the fulfilled time to be less than or equal to the given value
+
+fulfilled_time	
+string <date-time>
+Filter by the fulfilled time to be equal to the given value
+
+geometry__centroid_within	
+string
+Filter by the geometry to have its centroid within the given geometry (GeoJSON or WKT string)
+
+geometry__intersects	
+string
+Filter by the geometry to to intersect with the given geometry (GeoJSON or WKT string)
+
+id__in	
+string <uuid>
+Filter by the id to be one of the given values (comma-separated)
+
+id	
+string <uuid>
+Filter by the id to be equal to the given value
+
+id__ne	
+string <uuid>
+Filter by the id to not be equal to the given value
+
+id__notin	
+string <uuid>
+Filter by the id to not be one of the given values (comma-separated)
+
+last_acquired_time__gt	
+string <date-time>
+Filter by the last acquired time to be greater than the given value
+
+last_acquired_time__gte	
+string <date-time>
+Filter by the last acquired time to be greater than or equal to the given value
+
+last_acquired_time__lt	
+string <date-time>
+Filter by the last acquired time to be less than the given value
+
+last_acquired_time__lte	
+string <date-time>
+Filter by the last acquired time to be less than or equal to the given value
+
+last_acquired_time	
+string <date-time>
+Filter by the last acquired time to be equal to the given value
+
+n_stereo_pov	
+string
+Enum: 2 3
+Filter by the number of stereo captures to be equal to the given value
+
+n_stereo_pov__ne	
+number
+Filter by the number of stereo captures to not be equal to the given value
+
+name	
+string
+Filter by the name to be equal to the given value
+
+name__icontains	
+string
+Filter by the name to contain the given value (case-insensitive)
+
+name__ne	
+string
+Filter by the name to not be equal to the given value
+
+order_type__in	
+string
+Filter by the order type to be one of the given values (comma-separated)
+
+order_type	
+string
+Enum: "IMAGE" "VIDEO" "STEREO"
+Filter by the order type to be equal to the given value
+
+order_type__ne	
+string
+Filter by the order type to not be equal to the given value
+
+order_type__notin	
+string
+Filter by the order type to not be one of the given values (comma-separated)
+
+original_geometry_type__in	
+string
+Filter by the original geometry type to be one of the given values (comma-separated)
+
+original_geometry_type	
+string
+Enum: "Point" "MultiPoint" "LineString" "MultiLineString" "Polygon" "MultiPolygon" "GeometryCollection"
+Filter by the original geometry type to be equal to the given value
+
+original_geometry_type__ne	
+string
+Filter by the original geometry type to not be equal to the given value
+
+original_geometry_type__notin	
+string
+Filter by the original geometry type to not be one of the given values (comma-separated)
+
+pl_number	
+string
+Filter by the contract number to be equal to the given value
+
+pl_number__in	
+string
+Filter by the contract number to be one of the given values (comma-separated)
+
+pl_number__icontains	
+string
+Filter by the contract number to contain the given value (case-insensitive)
+
+pl_number__ne	
+string
+Filter by the contract number to not be equal to the given value
+
+pl_number__notin	
+string
+Filter by the contract number to not be one of the given values (comma-separated)
+
+product__in	
+string
+Filter by the product name to be one of the given values (comma-separated)
+
+product	
+string
+Filter by the product name to be equal to the given value
+
+product__ne	
+string
+Filter by the product name to not be equal to the given value
+
+product__notin	
+string
+Filter by the product name to not be one of the given values (comma-separated)
+
+requested_sqkm__gt	
+number
+Filter by the requested square kilometers to be greater than the given value
+
+requested_sqkm__gte	
+number
+Filter by the requested square kilometers to be greater than or equal to the given value
+
+requested_sqkm__lt	
+number
+Filter by the requested square kilometers to be less than the given value
+
+requested_sqkm__lte	
+number
+Filter by the requested square kilometers to be less than or equal to the given value
+
+requested_sqkm	
+number
+Filter by the requested square kilometers to be equal to the given value
+
+sat_elevation_angle_max__gt	
+number
+Filter by the maximum satellite elevation angle to be greater than the given value
+
+sat_elevation_angle_max__gte	
+number
+Filter by the maximum satellite elevation angle to be greater than or equal to the given value
+
+sat_elevation_angle_max__lt	
+number
+Filter by the maximum satellite elevation angle to be less than the given value
+
+sat_elevation_angle_max__lte	
+number
+Filter by the maximum satellite elevation angle to be less than or equal to the given value
+
+sat_elevation_angle_max	
+number
+Filter by the maximum satellite elevation angle to be equal to the given value
+
+sat_elevation_angle_min__gt	
+number
+Filter by the minimum satellite elevation angle to be greater than the given value
+
+sat_elevation_angle_min__gte	
+number
+Filter by the minimum satellite elevation angle to be greater than or equal to the given value
+
+sat_elevation_angle_min__lt	
+number
+Filter by the minimum satellite elevation angle to be less than the given value
+
+sat_elevation_angle_min__lte	
+number
+Filter by the minimum satellite elevation angle to be less than or equal to the given value
+
+sat_elevation_angle_min	
+number
+Filter by the minimum satellite elevation angle to be equal to the given value
+
+scheduling_type__in	
+string
+Filter by the scheduling type to be one of the given values (comma-separated)
+
+scheduling_type	
+string
+Enum: "FLEXIBLE" "LOCK_IN" "MONITORING" "EXPRESS" "ASSURED" "ARCHIVE"
+Filter by the scheduling type to be equal to the given value
+
+scheduling_type__ne	
+string
+Filter by the scheduling type to not be equal to the given value
+
+scheduling_type__notin	
+string
+Filter by the scheduling type to not be one of the given values (comma-separated)
+
+start_time__gt	
+string <date-time>
+Filter by the start time to be greater than the given value
+
+start_time__gte	
+string <date-time>
+Filter by the start time to be greater than or equal to the given value
+
+start_time__lt	
+string <date-time>
+Filter by the start time to be less than the given value
+
+start_time__lte	
+string <date-time>
+Filter by the start time to be less than or equal to the given value
+
+start_time	
+string <date-time>
+Filter by the start time to be equal to the given value
+
+status__in	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the status to be one of the given values (comma-separated)
+
+status	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the status to be equal to the given value
+
+status__ne	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the status to not be equal to the given value
+
+status__notin	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the status to not be one of the given values (comma-separated)
+
+updated_time__gt	
+string <date-time>
+Filter by the updated time to be greater than the given value
+
+updated_time__gte	
+string <date-time>
+Filter by the updated time to be greater than or equal to the given value
+
+updated_time__lt	
+string <date-time>
+Filter by the updated time to be less than the given value
+
+updated_time__lte	
+string <date-time>
+Filter by the updated time to be less than or equal to the given value
+
+updated_time	
+string <date-time>
+Filter by the updated time to be equal to the given value
+
+used_quota__gt	
+number
+Filter by the used quota to be greater than the given value
+
+used_quota__gte	
+number
+Filter by the used quota to be greater than or equal to the given value
+
+used_quota__lt	
+number
+Filter by the used quota to be less than the given value
+
+used_quota__lte	
+number
+Filter by the used quota to be less than or equal to the given value
+
+used_quota	
+number
+Filter by the used quota to be equal to the given value
+
+ends_in_hours__lt	
+number
+Filter by the ends in hours to be less than the given value
+
+ends_in_hours__lte	
+number
+Filter by the ends in hours to be less than or equal to the given value
+
+ends_in_hours__exact	
+number
+Filter by the ends in hours to be equal to the given value
+
+ends_in_hours__gte	
+number
+Filter by the ends in hours to be greater than or equal to the given value
+
+ends_in_hours__gt	
+number
+Filter by the ends in hours to be greater than the given value
+
+ordering	
+string
+Which field to use when ordering the results.
+
+limit	
+integer [ 1 .. 1000 ]
+Number of results to return per page.
+
+offset	
+integer [ 0 .. 30000 ]
+The initial index from which to return the results.
+
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/orders/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"count": 0,
+"next": "http://example.com",
+"previous": "http://example.com",
+"results": [
+{}
+]
+}
+Create Tasking Order
+Submit a new tasking order.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+imaging_window	
+string or null <uuid> (Imaging window)
+Imaging window ID to create an order for. Required to place an Assured Tasking order. Cannot be used for other scheduling types.
+
+geometry	
+object (Geometry)
+GeoJSON representation of a Point, a two-point LineString or a Polygon. Point and LineString inputs will be will be expanded into a circular or rectangle Polygon respectively to serve as the area of interest for this order. The expansion size defaults to 5 km for SkySat imagery but can vary based on product parameters. Required for all orders except Assured Tasking orders.
+
+pl_number	
+string or null (Contract number) non-empty
+Contract number of the order. Required if you have access to multiple products or contracts.
+
+product	
+string or null (Product name) non-empty
+Name of the product of the order. Required if you have access to multiple products or contracts.
+
+start_time	
+string <date-time> (Start time)
+Time at which to start acquiring imagery for the order. Defaults to the time of order submission.
+
+end_time	
+string or null <date-time> (End time)
+Latest time by which imagery will be acquired for the order. Defaults to the contract's default order duration (from the time of order submission).
+
+n_stereo_pov	
+integer or null (Number of stereo captures)
+Enum: 2 3
+Number of captures to be taken for Stereo Tasking orders. The convergence half angle is 15° for 2 stereo captures, and 27.5° for 3 stereo captures.
+
+exclusivity_days	
+integer or null (Exclusivity days)
+Enum: 0 7 30
+Number of days for the captured imagery to be held exclusive for this order
+
+name
+required
+string (Name) non-empty
+User-defined name of an order
+
+scheduling_type	
+string (Scheduling type)
+Enum: "FLEXIBLE" "LOCK_IN" "MONITORING" "EXPRESS" "ASSURED" "ARCHIVE"
+The way the order will be scheduled for capturing imagery. Must match the product.
+
+Responses
+201
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+post
+/orders/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"imaging_window": "a1da9ea0-27e5-48b8-87e5-6fbff34aa067",
+"geometry": { },
+"pl_number": "string",
+"product": "string",
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"n_stereo_pov": 2,
+"exclusivity_days": 0,
+"name": "string",
+"scheduling_type": "FLEXIBLE"
+}
+Response samples
+201
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"imaging_window": "a1da9ea0-27e5-48b8-87e5-6fbff34aa067",
+"geometry": { },
+"original_geometry": { },
+"fulfilled_geometry": { },
+"capture_count": 2147483647,
+"capture_status_queued_count": 2147483647,
+"capture_status_processing_count": 2147483647,
+"capture_status_failed_count": 2147483647,
+"capture_status_published_count": 2147483647,
+"capture_assessment_success_count": 2147483647,
+"capture_assessment_invalid_count": 2147483647,
+"order_type": "IMAGE",
+"fulfilled_time": "2019-08-24T14:15:22Z",
+"pl_number": "string",
+"product": "string",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"early_start": true,
+"cloud_threshold": 1,
+"satellite_types": [
+"SKYSAT"
+],
+"n_stereo_pov": 2,
+"is_cancellable": true,
+"cancellable_until": "2019-08-24T14:15:22Z",
+"requested_sqkm": 0,
+"fulfilled_sqkm": 0,
+"next_planned_acquisition_time": "2019-08-24T14:15:22Z",
+"exclusivity_days": 0,
+"created_by": "string",
+"requested_item_ids": [
+"string"
+],
+"created_time": "2019-08-24T14:15:22Z",
+"updated_time": "2019-08-24T14:15:22Z",
+"name": "string",
+"status": "RECEIVED",
+"original_geometry_type": "Point",
+"capture_status_deriving_count": 2147483647,
+"scheduling_type": "FLEXIBLE",
+"rrule": "string",
+"cancellation_period": "string",
+"cancellation_fee_applied": true,
+"last_acquired_time": "2019-08-24T14:15:22Z",
+"estimated_quota_cost": 0,
+"used_quota": 0,
+"min_strip_length": 0,
+"point_order_radius": 0,
+"asset_types": [
+"basic_radiance_hdf5"
+],
+"sensitivity_mode": "NOT_APPLICABLE",
+"integrations_per_line": 32767,
+"integration_ms": 32767,
+"uplink_method": "STANDARD",
+"downlink_method": "STANDARD"
+}
+Retrieve Tasking Order
+Retrieve details of a specific tasking order by its ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+query Parameters
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/orders/{id}/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"imaging_window": "a1da9ea0-27e5-48b8-87e5-6fbff34aa067",
+"geometry": { },
+"original_geometry": { },
+"fulfilled_geometry": { },
+"capture_count": 2147483647,
+"capture_status_queued_count": 2147483647,
+"capture_status_processing_count": 2147483647,
+"capture_status_failed_count": 2147483647,
+"capture_status_published_count": 2147483647,
+"capture_assessment_success_count": 2147483647,
+"capture_assessment_invalid_count": 2147483647,
+"order_type": "IMAGE",
+"fulfilled_time": "2019-08-24T14:15:22Z",
+"pl_number": "string",
+"product": "string",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"early_start": true,
+"cloud_threshold": 1,
+"satellite_types": [
+"SKYSAT"
+],
+"n_stereo_pov": 2,
+"is_cancellable": true,
+"cancellable_until": "2019-08-24T14:15:22Z",
+"requested_sqkm": 0,
+"fulfilled_sqkm": 0,
+"next_planned_acquisition_time": "2019-08-24T14:15:22Z",
+"exclusivity_days": 0,
+"created_by": "string",
+"requested_item_ids": [
+"string"
+],
+"created_time": "2019-08-24T14:15:22Z",
+"updated_time": "2019-08-24T14:15:22Z",
+"name": "string",
+"status": "RECEIVED",
+"original_geometry_type": "Point",
+"capture_status_deriving_count": 2147483647,
+"scheduling_type": "FLEXIBLE",
+"rrule": "string",
+"cancellation_period": "string",
+"cancellation_fee_applied": true,
+"last_acquired_time": "2019-08-24T14:15:22Z",
+"estimated_quota_cost": 0,
+"used_quota": 0,
+"min_strip_length": 0,
+"point_order_radius": 0,
+"asset_types": [
+"basic_radiance_hdf5"
+],
+"sensitivity_mode": "NOT_APPLICABLE",
+"integrations_per_line": 32767,
+"integration_ms": 32767,
+"uplink_method": "STANDARD",
+"downlink_method": "STANDARD"
+}
+Update Tasking Order
+Change the properties of a tasking order by its ID. Changes may be prohibited by certain conditions under your contract's Terms of Service, for example if an order is already in status IN_PROGRESS.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+Request Body schema: application/json
+required
+start_time	
+string <date-time> (Start time)
+Time at which to start acquiring imagery for the order. Defaults to the time of order submission.
+
+end_time	
+string <date-time> (End time)
+Latest time by which imagery will be acquired for the order. Defaults to the contract's default order duration (from the time of order submission).
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+patch
+/orders/{id}/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z"
+}
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+{
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z"
+}
+Cancel Tasking Order
+Cancel an existing tasking order. An order is cancellable if is_cancellable=true. Cancellation may be prohibited by certain conditions under your contract's Terms of Service, for example if an order is already in status IN_PROGRESS.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+query Parameters
+accept_cancellation_charge	
+boolean
+Default: false
+Set to true to accept the cancellation charge for the order. Required if the order is not cancellable without a charge.
+
+Responses
+204
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+delete
+/orders/{id}/
+Retrieve Order Pricing Information
+Retrieve detailed pricing information for a specific tasking order by its ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+query Parameters
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/orders/{id}/pricing/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"units": "SQKM",
+"estimated_quota_cost": 0,
+"determined_by": "pricing_model",
+"pricing_model": {
+"property1": "string",
+"property2": "string"
+},
+"replaced_orders": [
+{}
+]
+}
+Imaging Windows
+An imaging window is a distinct opportunity for imagery to be taken by a specific satellite as it passes over an area of interest (AOI) at a given time of interest (TOI). Submitting an Assured Tasking order requires you to specify an imaging window.
+
+Retrieve Imaging Windows Deprecated
+Retrieve the available imaging windows after completing a synchronous (blocking) imaging window search using the search_id returned from the initial search request as a query parameter.
+
+This operation is deprecated. Please create an asynchronous imaging windows search request instead.
+
+Authorizations:
+Basic
+query Parameters
+start_time__gt	
+string <date-time>
+Filter by the start time to be greater than the given value
+
+start_time__gte	
+string <date-time>
+Filter by the start time to be greater than or equal to the given value
+
+start_time__lt	
+string <date-time>
+Filter by the start time to be less than the given value
+
+start_time__lte	
+string <date-time>
+Filter by the start time to be less than or equal to the given value
+
+start_time	
+string <date-time>
+Filter by the start time to be equal to the given value
+
+end_time__gt	
+string <date-time>
+Filter by the end time to be greater than the given value
+
+end_time__gte	
+string <date-time>
+Filter by the end time to be greater than or equal to the given value
+
+end_time__lt	
+string <date-time>
+Filter by the end time to be less than the given value
+
+end_time__lte	
+string <date-time>
+Filter by the end time to be less than or equal to the given value
+
+end_time	
+string <date-time>
+Filter by the end time to be equal to the given value
+
+show_replacing_imaging_windows	
+boolean
+If true, the search results will include imaging windows that require the replacement of existing orders. If one of these imaging windows is used to submit an order, all orders listed in its conflicting_orders will be cancelled.
+
+search_id
+required
+string <uuid>
+Filter by the search ID to be equal to the given value
+
+ordering	
+string
+Which field to use when ordering the results.
+
+limit	
+integer [ 1 .. 1000 ]
+Number of results to return per page.
+
+offset	
+integer [ 0 .. 30000 ]
+The initial index from which to return the results.
+
+order_template__exclusivity_days	
+number
+Default: false
+Number of days for the captured imagery to be held exclusive for an order created from an imaging window. Used to determine the per-imaging window pricing_details.
+
+order_template__sensitivity_mode	
+string
+Default: false
+The sensitivity mode influences the number of integrations performed during hyperspectral imagery capture. Possible values are:
+
+NOT_APPLICABLE: Not a hyperspectral imagery order
+GLINT:
+`STANDARD: 1 integrations per line over a 8 ms duration (1x8)
+MEDIUM: 2 integrations per line over a 8 ms duration (2x8)
+`HIGH: 3 integrations per line over a 8 ms duration (3x8)
+`MAX: 4 integrations per line over a 8 ms duration (4x8)
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/imaging-windows/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"count": 0,
+"next": "http://example.com",
+"previous": "http://example.com",
+"results": [
+{}
+]
+}
+Search Imaging Windows Deprecated
+Performs a synchronous (blocking) search for available imaging windows. The request will return only after all available imaging windows have been determined. This process may take up to two minutes.
+
+This operation is deprecated. Please create an asynchronous imaging windows search request instead.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+pl_number	
+string (Contract number) non-empty
+Contract number of the search request. Required if you have access to multiple products or contracts.
+
+product	
+string (Product name) non-empty
+Name of the product of the search request. Required if you have access to multiple products or contracts.
+
+geometry
+required
+object (Geometry)
+GeoJSON representation of a Point or a two-point LineString to serve as the area of interest for the imaging window search
+
+start_time	
+string <date-time> (Start time)
+Time from which to consider imaging windows. Defaults to now.
+
+end_time	
+string <date-time> (End time)
+Time until which to consider imaging windows. Defaults to 7 days from now.
+
+sat_elevation_angle_min	
+number (Minimum satellite elevation angle) [ 15 .. 90 ]
+Minimum elevation of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+sat_elevation_angle_max	
+number (Maximum satellite elevation angle) [ 15 .. 90 ]
+Maximum elevation of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+off_nadir_angle_min	
+number (Minimum off-nadir angle) [ 0 .. 65 ]
+Minimum off-nadir angle of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+off_nadir_angle_max	
+number (Maximum off-nadir angle) [ 0 .. 65 ]
+Maximum off-nadir angle of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+Responses
+201
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+3 requests/second (scope: imaging window search)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+503
+Service Unavailable
+
+
+post
+/imaging-windows/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"pl_number": "string",
+"product": "string",
+"geometry": { },
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"off_nadir_angle_min": 65,
+"off_nadir_angle_max": 65
+}
+Create Asynchronous Imaging Windows Search Request
+Submit an asynchronous request to search for imaging windows. Once the search request has been created its status and results can be observed by retrieving the resource by its ID. Additional results will be returned over time as they become available until the status of the search request changes to DONE.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+pl_number	
+string (Contract number) non-empty
+Contract number of the search request. Required if you have access to multiple products or contracts.
+
+product	
+string (Product name) non-empty
+Name of the product of the search request. Required if you have access to multiple products or contracts.
+
+geometry
+required
+object (Geometry)
+GeoJSON representation of a Point or a two-point LineString to serve as the area of interest for the imaging window search
+
+start_time	
+string <date-time> (Start time)
+Time from which to consider imaging windows. Defaults to now.
+
+end_time	
+string <date-time> (End time)
+Time until which to consider imaging windows. Defaults to 7 days from now.
+
+sat_elevation_angle_min	
+number (Minimum satellite elevation angle) [ 15 .. 90 ]
+Minimum elevation of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+sat_elevation_angle_max	
+number (Maximum satellite elevation angle) [ 15 .. 90 ]
+Maximum elevation of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+off_nadir_angle_min	
+number (Minimum off-nadir angle) [ 0 .. 65 ]
+Minimum off-nadir angle of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+off_nadir_angle_max	
+number (Maximum off-nadir angle) [ 0 .. 65 ]
+Maximum off-nadir angle of the satellite flying over the chosen area of interest. Passing satellite elevation and off-nadir angle ranges is mutually exclusive.
+
+Responses
+201
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+3 requests/second (scope: imaging window search)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+post
+/imaging-windows/search/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"pl_number": "string",
+"product": "string",
+"geometry": { },
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"off_nadir_angle_min": 65,
+"off_nadir_angle_max": 65
+}
+Response samples
+201
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"imaging_windows": [ ],
+"status": "CREATED",
+"pl_number": "string",
+"product": "string",
+"geometry": { },
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"off_nadir_angle_min": 65,
+"off_nadir_angle_max": 65,
+"error_code": "INTERNAL_ERROR",
+"error_message": "string"
+}
+Retrieve Asynchronous Imaging Windows Search Results
+Retrieve the status and results of an imaging window search request by its ID. Additional results will be returned over time as they become available until the status of the search request changes to DONE.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+query Parameters
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+start_time__gt	
+string <date-time>
+Filter the nested list of imaging windows by a start time greater than the specified value.
+
+start_time__gte	
+string <date-time>
+Filter the nested list of imaging windows by a start time greater than or equal to the specified value.
+
+show_replacing_imaging_windows	
+boolean
+Default: false
+If true, the search results will include imaging windows that require the replacement of existing orders. If one of these imaging windows is used to submit an order, all orders listed in its conflicting_orders will be cancelled.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/imaging-windows/search/{id}/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"imaging_windows": [ ],
+"status": "CREATED",
+"pl_number": "string",
+"product": "string",
+"geometry": { },
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"sat_elevation_angle_min": 15,
+"sat_elevation_angle_max": 15,
+"off_nadir_angle_min": 65,
+"off_nadir_angle_max": 65,
+"error_code": "INTERNAL_ERROR",
+"error_message": "string"
+}
+Captures
+A capture is a reference to the imagery acquired for the order submitted by the user.
+
+List Captures
+Retrieve all captures you have access to. This includes all captures related to your organization.
+
+Authorizations:
+Basic
+query Parameters
+acquired_time__gt	
+string <date-time>
+Filter by the acquired time to be greater than the given value
+
+acquired_time__gte	
+string <date-time>
+Filter by the acquired time to be greater than or equal to the given value
+
+acquired_time__lt	
+string <date-time>
+Filter by the acquired time to be less than the given value
+
+acquired_time__lte	
+string <date-time>
+Filter by the acquired time to be less than or equal to the given value
+
+acquired_time	
+string <date-time>
+Filter by the acquired time to be equal to the given value
+
+assessment_time__isnull	
+boolean
+Filter by the assessment time to be null/unset
+
+assessment_time__isnotnull	
+boolean
+Filter by the assessment time to not be null/unset
+
+assessment_time__gt	
+string <date-time>
+Filter by the assessment time to be greater than the given value
+
+assessment_time__gte	
+string <date-time>
+Filter by the assessment time to be greater than or equal to the given value
+
+assessment_time__lt	
+string <date-time>
+Filter by the assessment time to be less than the given value
+
+assessment_time__lte	
+string <date-time>
+Filter by the assessment time to be less than or equal to the given value
+
+assessment_time	
+string <date-time>
+Filter by the assessment time to be equal to the given value
+
+assessment__in	
+string
+Filter by the assessment to be one of the given values (comma-separated)
+
+assessment	
+string
+Enum: "SUCCESS" "ATTEMPT" "INVALID"
+Filter by the assessment to be equal to the given value
+
+assessment__isnull	
+boolean
+Filter by the assessment to be null/unset
+
+assessment__isnotnull	
+boolean
+Filter by the assessment to not be null/unset
+
+cloud_cover__gt	
+number
+Filter by the cloud cover to be greater than the given value
+
+cloud_cover__gte	
+number
+Filter by the cloud cover to be greater than or equal to the given value
+
+cloud_cover__lt	
+number
+Filter by the cloud cover to be less than the given value
+
+cloud_cover__lte	
+number
+Filter by the cloud cover to be less than or equal to the given value
+
+created_time__gt	
+string <date-time>
+Filter by the created time to be greater than the given value
+
+created_time__gte	
+string <date-time>
+Filter by the created time to be greater than or equal to the given value
+
+created_time__lt	
+string <date-time>
+Filter by the created time to be less than the given value
+
+created_time__lte	
+string <date-time>
+Filter by the created time to be less than or equal to the given value
+
+created_time	
+string <date-time>
+Filter by the created time to be equal to the given value
+
+evaluation	
+string
+Enum: "NONE" "SUCCESS" "INVALID"
+Filter by the evaluation to be equal to the given value
+
+fulfilling	
+boolean
+Filter by the fulfilling to be equal to the given value
+
+id__in	
+string <uuid>
+Filter by the id to be one of the given values (comma-separated)
+
+id	
+string <uuid>
+Filter by the id to be equal to the given value
+
+id__ne	
+string <uuid>
+Filter by the id to not be equal to the given value
+
+id__notin	
+string <uuid>
+Filter by the id to not be one of the given values (comma-separated)
+
+ground_id__in	
+string <uuid>
+Filter by the ground ID to be one of the given values (comma-separated)
+
+ground_id	
+string <uuid>
+Filter by the ground ID to be equal to the given value
+
+ground_id__ne	
+string <uuid>
+Filter by the ground ID to not be equal to the given value
+
+ground_id__notin	
+string <uuid>
+Filter by the ground ID to not be one of the given values (comma-separated)
+
+order__created_time__gt	
+string <date-time>
+Filter by the order created time to be greater than the given value
+
+order__created_time__gte	
+string <date-time>
+Filter by the order created time to be greater than or equal to the given value
+
+order__created_time__lt	
+string <date-time>
+Filter by the order created time to be less than the given value
+
+order__created_time__lte	
+string <date-time>
+Filter by the order created time to be less than or equal to the given value
+
+order__created_time	
+string <date-time>
+Filter by the order created time to be equal to the given value
+
+order__end_time__gt	
+string <date-time>
+Filter by the order end time to be greater than the given value
+
+order__end_time__gte	
+string <date-time>
+Filter by the order end time to be greater than or equal to the given value
+
+order__end_time__lt	
+string <date-time>
+Filter by the order end time to be less than the given value
+
+order__end_time__lte	
+string <date-time>
+Filter by the order end time to be less than or equal to the given value
+
+order__end_time	
+string <date-time>
+Filter by the order end time to be equal to the given value
+
+order_name	
+string
+Filter by the order name to be equal to the given value
+
+order_name__in	
+string
+Filter by the order name to be one of the given values (comma-separated)
+
+order_name__icontains	
+string
+Filter by the order name to contain the given value (case-insensitive)
+
+order_name__ne	
+string
+Filter by the order name to not be equal to the given value
+
+order_name__notin	
+string
+Filter by the order name to not be one of the given values (comma-separated)
+
+order__start_time__gt	
+string <date-time>
+Filter by the order start time to be greater than the given value
+
+order__start_time__gte	
+string <date-time>
+Filter by the order start time to be greater than or equal to the given value
+
+order__start_time__lt	
+string <date-time>
+Filter by the order start time to be less than the given value
+
+order__start_time__lte	
+string <date-time>
+Filter by the order start time to be less than or equal to the given value
+
+order__start_time	
+string <date-time>
+Filter by the order start time to be equal to the given value
+
+order__status__in	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the order status to be one of the given values (comma-separated)
+
+order__status	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the order status to be equal to the given value
+
+order__status__ne	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the order status to not be equal to the given value
+
+order__status__notin	
+string
+Enum: "RECEIVED" "PENDING" "IN_PROGRESS" "EXPIRED" "FULFILLED" "FAILED" "CANCELLED" "REQUESTED" "FINALIZING" "PENDING_CANCELLATION" "REJECTED"
+Filter by the order status to not be one of the given values (comma-separated)
+
+order_id__in	
+string <uuid>
+Filter by the order ID to be one of the given values (comma-separated)
+
+order_id	
+string <uuid>
+Filter by the order ID to be equal to the given value
+
+pl_number	
+string
+Filter by the contract number to be equal to the given value
+
+pl_number__in	
+string
+Filter by the contract number to be one of the given values (comma-separated)
+
+pl_number__icontains	
+string
+Filter by the contract number to contain the given value (case-insensitive)
+
+pl_number__ne	
+string
+Filter by the contract number to not be equal to the given value
+
+pl_number__notin	
+string
+Filter by the contract number to not be one of the given values (comma-separated)
+
+planned_acquisition_time__gt	
+string <date-time>
+Filter by the planned acquisition time to be greater than the given value
+
+planned_acquisition_time__gte	
+string <date-time>
+Filter by the planned acquisition time to be greater than or equal to the given value
+
+planned_acquisition_time__lt	
+string <date-time>
+Filter by the planned acquisition time to be less than the given value
+
+planned_acquisition_time__lte	
+string <date-time>
+Filter by the planned acquisition time to be less than or equal to the given value
+
+planned_acquisition_time	
+string <date-time>
+Filter by the planned acquisition time to be equal to the given value
+
+product__in	
+string
+Filter by the product name to be one of the given values (comma-separated)
+
+product	
+string
+Filter by the product name to be equal to the given value
+
+product__ne	
+string
+Filter by the product name to not be equal to the given value
+
+product__notin	
+string
+Filter by the product name to not be one of the given values (comma-separated)
+
+published_time__gt	
+string <date-time>
+Filter by the published to customer to be greater than the given value
+
+published_time__gte	
+string <date-time>
+Filter by the published to customer to be greater than or equal to the given value
+
+published_time__lt	
+string <date-time>
+Filter by the published to customer to be less than the given value
+
+published_time__lte	
+string <date-time>
+Filter by the published to customer to be less than or equal to the given value
+
+published_time	
+string <date-time>
+Filter by the published to customer to be equal to the given value
+
+status__in	
+string
+Filter by the status to be one of the given values (comma-separated)
+
+status	
+string
+Enum: "SCHEDULED" "REMOVED" "QUEUED" "PROCESSING" "FAILED" "DERIVING" "PUBLISHED"
+Filter by the status to be equal to the given value
+
+status__ne	
+string
+Filter by the status to not be equal to the given value
+
+status__notin	
+string
+Filter by the status to not be one of the given values (comma-separated)
+
+strip_id__in	
+string
+Filter by the strip ID to be one of the given values (comma-separated)
+
+strip_id	
+string
+Filter by the strip ID to be equal to the given value
+
+strip_id__ne	
+string
+Filter by the strip ID to not be equal to the given value
+
+strip_id__notin	
+string
+Filter by the strip ID to not be one of the given values (comma-separated)
+
+updated_time__gt	
+string <date-time>
+Filter by the updated time to be greater than the given value
+
+updated_time__gte	
+string <date-time>
+Filter by the updated time to be greater than or equal to the given value
+
+updated_time__lt	
+string <date-time>
+Filter by the updated time to be less than the given value
+
+updated_time__lte	
+string <date-time>
+Filter by the updated time to be less than or equal to the given value
+
+updated_time	
+string <date-time>
+Filter by the updated time to be equal to the given value
+
+item_ids	
+string
+Filter by the item IDs to contain the given value
+
+ordering	
+string
+Which field to use when ordering the results.
+
+limit	
+integer [ 1 .. 1000 ]
+Number of results to return per page.
+
+offset	
+integer [ 0 .. 30000 ]
+The initial index from which to return the results.
+
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/captures/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"count": 0,
+"next": "http://example.com",
+"previous": "http://example.com",
+"results": [
+{}
+]
+}
+Retrieve Capture
+Retrieve details of a specific capture by its ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string <uuid>
+A UUID string identifying this capture.
+
+query Parameters
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/captures/{id}/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"captured_area": { },
+"area_of_interest": { },
+"fulfilling": true,
+"status": "SCHEDULED",
+"ground_id": "197878e8-56d8-4151-987b-fa5783651ac5",
+"item_ids": [
+"string"
+],
+"scene_ids": [
+"string"
+],
+"cloud_cover": 1,
+"order_name": "string",
+"order__status": "RECEIVED",
+"evaluation": "NONE",
+"created_time": "2019-08-24T14:15:22Z",
+"updated_time": "2019-08-24T14:15:22Z",
+"planned_acquisition_time": "2019-08-24T14:15:22Z",
+"acquired_time": "2019-08-24T14:15:22Z",
+"published_time": "2019-08-24T14:15:22Z",
+"status_description": "string",
+"assessment": "SUCCESS",
+"assessment_time": "2019-08-24T14:15:22Z",
+"pl_number": "string",
+"product": "string",
+"strip_id": "string",
+"item_types": [
+"string"
+]
+}
+Bulk Processes
+Bulk processes allows you to submit up to 1000 orders in a single request. Upon submission, the orders will be created asynchronously and will become available individually. Orders may also be edited or cancelled in bulk by changing the operation_type of the bulk process.
+
+List Bulk Processes
+Retrieve all bulk processes you have access to. This includes all bulk processes created within your organization.
+
+Authorizations:
+Basic
+query Parameters
+start_time__gt	
+string <date-time>
+Filter by the start time to be greater than the given value
+
+start_time__gte	
+string <date-time>
+Filter by the start time to be greater than or equal to the given value
+
+start_time__lt	
+string <date-time>
+Filter by the start time to be less than the given value
+
+start_time__lte	
+string <date-time>
+Filter by the start time to be less than or equal to the given value
+
+start_time	
+string <date-time>
+Filter by the start time to be equal to the given value
+
+end_time__gt	
+string <date-time>
+Filter by the end time to be greater than the given value
+
+end_time__gte	
+string <date-time>
+Filter by the end time to be greater than or equal to the given value
+
+end_time__lt	
+string <date-time>
+Filter by the end time to be less than the given value
+
+end_time__lte	
+string <date-time>
+Filter by the end time to be less than or equal to the given value
+
+end_time	
+string <date-time>
+Filter by the end time to be equal to the given value
+
+status__in	
+string
+Filter by the status to be one of the given values (comma-separated)
+
+status	
+string
+Enum: "PENDING" "RUNNING" "COMPLETE"
+Filter by the status to be equal to the given value
+
+status__ne	
+string
+Filter by the status to not be equal to the given value
+
+status__notin	
+string
+Filter by the status to not be one of the given values (comma-separated)
+
+payload_count__gt	
+number
+Filter by the payload count to be greater than the given value
+
+payload_count__gte	
+number
+Filter by the payload count to be greater than or equal to the given value
+
+payload_count__lt	
+number
+Filter by the payload count to be less than the given value
+
+payload_count__lte	
+number
+Filter by the payload count to be less than or equal to the given value
+
+payload_count	
+number
+Filter by the payload count to be equal to the given value
+
+failed_payload_count__gt	
+number
+Filter by the failed payload count to be greater than the given value
+
+failed_payload_count__gte	
+number
+Filter by the failed payload count to be greater than or equal to the given value
+
+failed_payload_count__lt	
+number
+Filter by the failed payload count to be less than the given value
+
+failed_payload_count__lte	
+number
+Filter by the failed payload count to be less than or equal to the given value
+
+failed_payload_count	
+number
+Filter by the failed payload count to be equal to the given value
+
+order_payloads__error__isnull	
+boolean
+Filter by the order payloads error to be null/unset
+
+order_payloads__error__isnotnull	
+boolean
+Filter by the order payloads error to not be null/unset
+
+order_payloads__order_id__isnull	
+boolean
+Filter by the order payloads order ID to be null/unset
+
+order_payloads__order_id__isnotnull	
+boolean
+Filter by the order payloads order ID to not be null/unset
+
+ordering	
+string
+Which field to use when ordering the results.
+
+limit	
+integer [ 1 .. 1000 ]
+Number of results to return per page.
+
+offset	
+integer [ 0 .. 30000 ]
+The initial index from which to return the results.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/bulk/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"count": 0,
+"next": "http://example.com",
+"previous": "http://example.com",
+"results": [
+{}
+]
+}
+Create Bulk Order
+Submit an asynchronous request to bulk-process tasking orders. Orders may be created, edited or cancelled depending on the operation_type.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+order_payloads
+required
+Array of objects (OrderPayload)
+id	
+string <uuid> (Bulk ID)
+Unique identifier of a bulk process
+
+operation_type	
+string (Operation type)
+Enum: "CREATE" "CANCEL" "EDIT"
+Operation type of the bulk process
+
+Responses
+202
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+post
+/bulk/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"order_payloads": [
+{}
+],
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"operation_type": "CREATE"
+}
+Response samples
+202
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"order_payloads": [
+{}
+],
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"operation_type": "CREATE"
+}
+Retrieve Bulk Order
+After submitting a bulk order, this endpoint allows monitoring the status of that bulk request by its ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string <uuid>
+A UUID string identifying this bulk process.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/bulk/{id}/
+Response samples
+200
+Content type
+application/json
+
+Copy
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"operation_type": "CREATE",
+"payload_count": -2147483648,
+"status": "PENDING",
+"processing_payload_count": -2147483648,
+"failed_payload_count": -2147483648,
+"successful_payload_count": -2147483648
+}
+Retrieve Bulk Order Payloads
+After submitting a bulk order, this endpoint provides an in-depth view of the tasking orders that were part of the bulk request, including the status of each tasking order.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string <uuid>
+A UUID string identifying this bulk process.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/bulk/{id}/payloads/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+[
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"bulk_process": "b13e133c-9e07-4f03-bab7-7928a19f9b05",
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"status": "SUCCESS",
+"payload": { },
+"error": "string"
+}
+]
+Order History
+The order history provides insights on your orders moving through the stages order process. Whenever an order changes its status, a new history event will be recorded to represent the change.
+
+List Order History
+List history events for all orders and captures that relate to the given filters.
+
+Authorizations:
+Basic
+query Parameters
+order_id	
+string <uuid>
+Filter by the order ID to be equal to the given value
+
+target_type	
+string
+Filter by the target type to be equal to the given value
+
+target_id__in	
+string <uuid>
+Filter by the target ID to be one of the given values (comma-separated)
+
+target_id	
+string <uuid>
+Filter by the target ID to be equal to the given value
+
+target_id__ne	
+string <uuid>
+Filter by the target ID to not be equal to the given value
+
+target_id__notin	
+string <uuid>
+Filter by the target ID to not be one of the given values (comma-separated)
+
+event_type__in	
+string
+Filter by the event type to be one of the given values (comma-separated)
+
+event_type	
+string
+Enum: "CAPTURE_MANUALLY_ASSESSED" "CAPTURE_SCHEDULED" "CAPTURE_PROCESSING" "CAPTURE_PUBLISHED" "CAPTURE_DERIVING" "CAPTURE_L1A_PUBLISHED" "CAPTURE_FAILED" "BULK_CREATED" "BULK_FINISHED" "ORDER_CANCELLED" "ORDER_CREATED" "ORDER_FULFILLED" "ORDER_EDITED" "ORDER_EXPIRED" "ORDER_EXPIRING_SOON" "ORDER_FAILED" "ORDER_REJECTED" "ORDER_LOCK_IN_CONFIRMED" "ORDER_LOCK_IN_FAILED" "ORDER_LOCK_IN_EXCEPTION" "ORDER_LOCK_IN_REJECTED" "ORDER_LOCK_IN_FINALIZING" "ORDER_LOCK_IN_CANCELLATION_FAILED" "ORDER_LOCK_IN_CANCELLATION_REQUESTED" "ORDER_PENDING" "ORDER_STARTED" "EXPRESS_ORDER_NO_IMAGING_WINDOW_FOUND" "EXPRESS_ORDER_MAX_ATTEMPTS_REACHED" "EXPRESS_ORDER_IMAGING_WINDOW_CONFIRMATION_TIMEOUT" "CAPTURE_REVIEW_UPDATE"
+Filter by the event type to be equal to the given value
+
+event_type__ne	
+string
+Filter by the event type to not be equal to the given value
+
+event_type__notin	
+string
+Filter by the event type to not be one of the given values (comma-separated)
+
+created_time__gt	
+string <date-time>
+Filter by the created time to be greater than the given value
+
+created_time__gte	
+string <date-time>
+Filter by the created time to be greater than or equal to the given value
+
+created_time__lt	
+string <date-time>
+Filter by the created time to be less than the given value
+
+created_time__lte	
+string <date-time>
+Filter by the created time to be less than or equal to the given value
+
+created_time	
+string <date-time>
+Filter by the created time to be equal to the given value
+
+ordering	
+string
+Which field to use when ordering the results.
+
+limit	
+integer [ 1 .. 1000 ]
+Number of results to return per page.
+
+offset	
+integer [ 0 .. 30000 ]
+The initial index from which to return the results.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/order-history/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"count": 0,
+"next": "http://example.com",
+"previous": "http://example.com",
+"results": [
+{}
+]
+}
+Retrieve Order History
+Return a specific history event related to the given ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/order-history/{id}/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+"target_type": "string",
+"user_email": "string",
+"message": "string",
+"data": { },
+"target_id": "d3bcdc92-4191-401b-ad0c-42056c6efab9",
+"event_type": "CAPTURE_MANUALLY_ASSESSED",
+"created_time": "2019-08-24T14:15:22Z",
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"org_id": -2147483648
+}
+Preferences
+Preferences allow you to modify the behavior of the Tasking API.
+
+List Notification Preferences
+List the email notification preferences for the current user.
+
+Authorizations:
+Basic
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/preferences/notifications/
+Response samples
+200
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"enabled_emails": [
+"ORDER_FULFILLED"
+]
+}
+Set Notification Preferences
+Set the email notification preferences for the current user.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+enabled_emails
+required
+Array of strings
+Items Enum: "ORDER_FULFILLED" "ORDER_EXPIRED" "ORDER_EXPIRING_SOON" "ORDER_CREATED" "ORDER_REJECTED" "CAPTURE_FAILED" "CAPTURE_PUBLISHED" "CAPTURE_DERIVING" "CAPTURE_L1A_PUBLISHED" "CAPTURE_SCHEDULED" "ORDER_LOCK_IN_CONFIRMED" "ORDER_LOCK_IN_CANCELLATION_FAILED" "ORDER_LOCK_IN_FAILED" "ORDER_LOCK_IN_EXCEPTION" "ORDER_LOCK_IN_REJECTED" "BULK_FINISHED" "CAPTURE_REVIEW_UPDATE" "ORDER_FAILED"
+Events for which email notifications are enabled. Possible values are listed under event_type on Retrieve Order History.
+
+Responses
+201
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+post
+/preferences/notifications/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"enabled_emails": [
+"ORDER_FULFILLED"
+]
+}
+Response samples
+201
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"enabled_emails": [
+"ORDER_FULFILLED"
+]
+}
+Pricing
+Retrieve Order Pricing Information
+Retrieve detailed pricing information for a specific tasking order by its ID.
+
+Authorizations:
+Basic
+path Parameters
+id
+required
+string
+query Parameters
+fields	
+string
+Comma-separated list of fields to include in the response. If not provided, all available fields are returned.
+
+omit	
+string
+Comma-separated list of fields to exclude from the response. If not provided, all available fields are returned.
+
+Responses
+200
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+get
+/orders/{id}/pricing/
+Response samples
+200
+Content type
+
+application/json
+application/json
+
+Copy
+Expand allCollapse all
+{
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"units": "SQKM",
+"estimated_quota_cost": 0,
+"determined_by": "pricing_model",
+"pricing_model": {
+"property1": "string",
+"property2": "string"
+},
+"replaced_orders": [
+{}
+]
+}
+Retrieve Pricing Preview
+Retrieve a preview pricing details based on the given order parameters.
+
+Authorizations:
+Basic
+Request Body schema: application/json
+required
+imaging_window	
+string or null <uuid> (Imaging window)
+Imaging window ID to create an order for. Required to place an Assured Tasking order. Cannot be used for other scheduling types.
+
+geometry	
+object (Geometry)
+GeoJSON representation of a Point, a two-point LineString or a Polygon. Point and LineString inputs will be will be expanded into a circular or rectangle Polygon respectively to serve as the area of interest for this order. The expansion size defaults to 5 km for SkySat imagery but can vary based on product parameters. Required for all orders except Assured Tasking orders.
+
+pl_number	
+string or null (Contract number) non-empty
+Contract number of the order. Required if you have access to multiple products or contracts.
+
+product	
+string or null (Product name) non-empty
+Name of the product of the order. Required if you have access to multiple products or contracts.
+
+start_time	
+string <date-time> (Start time)
+Time at which to start acquiring imagery for the order. Defaults to the time of order submission.
+
+end_time	
+string or null <date-time> (End time)
+Latest time by which imagery will be acquired for the order. Defaults to the contract's default order duration (from the time of order submission).
+
+n_stereo_pov	
+integer or null (Number of stereo captures)
+Enum: 2 3
+Number of captures to be taken for Stereo Tasking orders. The convergence half angle is 15° for 2 stereo captures, and 27.5° for 3 stereo captures.
+
+exclusivity_days	
+integer or null (Exclusivity days)
+Enum: 0 7 30
+Number of days for the captured imagery to be held exclusive for this order
+
+scheduling_type	
+string (Scheduling type)
+Enum: "FLEXIBLE" "LOCK_IN" "MONITORING" "EXPRESS" "ASSURED" "ARCHIVE"
+The way the order will be scheduled for capturing imagery. Must match the product.
+
+Responses
+201
+400
+Invalid request.
+
+401
+Unauthorized.
+
+403
+Insufficient privileges.
+
+429
+Too many requests in a given amount of time ("rate limiting").
+
+The following limits apply:
+
+30 requests/minute (scope: unauthenticated)
+40 requests/second (scope: burst)
+300 requests/minute (scope: sustained)
+Limits are considered per user and per shared scope. Unless stated otherwise, the scope is shared across all endpoints. If a request exceeds any of the limits, the Retry-After header will indicate the number of seconds after which the user may retry the request (RFC 7231 sec. 7.1.3 notation).
+
+
+post
+/pricing/
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"imaging_window": "a1da9ea0-27e5-48b8-87e5-6fbff34aa067",
+"geometry": { },
+"pl_number": "string",
+"product": "string",
+"start_time": "2019-08-24T14:15:22Z",
+"end_time": "2019-08-24T14:15:22Z",
+"n_stereo_pov": 2,
+"exclusivity_days": 0,
+"scheduling_type": "FLEXIBLE"
+}
+Response samples
+201
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"order_id": "93101167-9065-4b9c-b98b-5d789a3ed9fe",
+"units": "SQKM",
+"estimated_quota_cost": 0,
+"determined_by": "pricing_model",
+"pricing_model": {
+"property1": "string",
+"property2": "string"
+},
+"replaced_orders": [
+{}
+]
+}
+Was this helpful?
+Last updated on Mar 19, 2025
+Previous
+Tasking Archive
+Next
+Authentication
+Company
+Visit Planet.com
+Talk to Sales
+Get Started
+News
+Blog
+Sign Up for News
+Product Updates
+Support
+Support Center
+Planet Community
+Planet University
+© 2025 Planet Labs PBC All rights reserved.
+Privacy Policy | California Privacy Notice | Your Privacy Choices  | Terms of Use | Cookie Notice | Sitemap     
+Feedback
