@@ -886,7 +886,7 @@ if st.session_state.selected_fields:
     st.header(f"Porównanie regionów: {', '.join(st.session_state.selected_fields)}")
     
     # Tworzenie zakładek dla różnych typów porównań
-    tabs = st.tabs(["Porównanie NDVI", "Porównanie plonów", "Porównanie sygnałów rynkowych", "Zaawansowana analiza ML"])
+    tabs = st.tabs(["Porównanie NDVI", "Porównanie plonów", "Porównanie sygnałów rynkowych", "Eksperckie raporty", "Zaawansowana analiza ML"])
     
     with tabs[0]:
         st.subheader("Porównanie indeksu NDVI między regionami")
@@ -1156,6 +1156,86 @@ if st.session_state.selected_fields:
             st.warning("Brak danych o sygnałach rynkowych dla wybranych regionów.")
     
     with tabs[3]:
+        st.subheader("Eksperckie raporty rynkowe")
+        
+        # Wybór pola do wygenerowania raportu (ograniczony do jednego)
+        if st.session_state.selected_fields:
+            field_for_report = st.selectbox(
+                "Wybierz region do generowania raportu", 
+                options=st.session_state.selected_fields
+            )
+            
+            # Wybór horyzontu czasowego dla raportu
+            forecast_period = st.radio(
+                "Horyzont prognozy",
+                options=["Krótkoterminowa", "Średnioterminowa", "Długoterminowa"],
+                horizontal=True
+            )
+            
+            # Przyciski do generowania raportu i zapisywania
+            col1, col2, col3 = st.columns([1, 1, 1])
+            
+            with col1:
+                generate_report = st.button("Generuj raport", key="generate_report_btn")
+            
+            # Użycie wybranej uprawy do generowania raportu
+            if generate_report:
+                with st.spinner("Generowanie eksperckiego raportu rynkowego..."):
+                    # Pobierz dane dla wybranego pola
+                    ndvi_data = load_ndvi_data(field_for_report)
+                    
+                    # Słownik danych do raportu
+                    report_data = {
+                        "ndvi_time_series": ndvi_data or {}
+                    }
+                    
+                    # Generowanie raportu w formacie Markdown
+                    report_md = generate_expert_commodity_report(
+                        field_for_report, 
+                        st.session_state.selected_crop, 
+                        report_data,
+                        forecast_period
+                    )
+                    
+                    # Konwersja raportu na HTML
+                    report_html = markdown_to_html(report_md)
+                    
+                    # Przechowaj wygenerowany raport w sesji
+                    st.session_state.last_report_md = report_md
+                    st.session_state.last_report_html = report_html
+                    
+                    # Wyświetl raport w Markdown
+                    st.markdown(report_md)
+                    
+                    with col2:
+                        # Przycisk do pobrania raportu jako Markdown
+                        if st.button("Pobierz jako Markdown", key="download_md_btn"):
+                            today = datetime.date.today().strftime('%Y-%m-%d')
+                            filename = f"raport_rynkowy_{field_for_report}_{today}.md"
+                            st.download_button(
+                                label="Pobierz raport Markdown",
+                                data=report_md,
+                                file_name=filename,
+                                mime="text/markdown",
+                                key="download_md"
+                            )
+                    
+                    with col3:
+                        # Przycisk do pobrania raportu jako HTML
+                        if st.button("Pobierz jako HTML", key="download_html_btn"):
+                            today = datetime.date.today().strftime('%Y-%m-%d')
+                            filename = f"raport_rynkowy_{field_for_report}_{today}.html"
+                            st.download_button(
+                                label="Pobierz raport HTML",
+                                data=report_html,
+                                file_name=filename,
+                                mime="text/html",
+                                key="download_html"
+                            )
+        else:
+            st.warning("Wybierz co najmniej jeden region, aby wygenerować raport.")
+
+    with tabs[4]:
         st.subheader("Zaawansowane analizy i automatyczne raporty")
         
         # Zakładki dla prostszej nawigacji
