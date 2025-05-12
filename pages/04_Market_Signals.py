@@ -602,7 +602,7 @@ if selected_field:
                 st.info("Nie wygenerowano sygnałów rynkowych. Spróbuj dostosować parametry analizy.")
     
     with tab2:
-        st.subheader("NDVI-Price Correlation Analysis")
+        st.subheader("Analiza korelacji NDVI-Cena")
         
         if st.session_state.market_signals_results:
             results = st.session_state.market_signals_results
@@ -614,10 +614,11 @@ if selected_field:
                     
                     # Create correlation matrix for NDVI anomaly
                     if "ndvi_anomaly" in lag0_results:
-                        st.markdown("### NDVI Anomaly to Price Correlation")
+                        st.markdown("### Korelacja anomalii NDVI z cenami")
                         st.markdown("""
-                        This heatmap shows the correlation between NDVI anomalies and commodity price returns.
-                        Positive values indicate that higher NDVI anomalies are associated with higher price returns.
+                        Ta mapa ciepła pokazuje korelację między anomaliami NDVI a zmianami cen towarów rolnych.
+                        Wartości dodatnie wskazują, że wyższe anomalie NDVI są powiązane z wyższymi stopami zwrotu cen.
+                        Wartości ujemne oznaczają odwrotną zależność - wzrost NDVI wiąże się ze spadkiem cen.
                         """)
                         
                         # Extract correlations for each price column
@@ -626,20 +627,20 @@ if selected_field:
                             ndvi_correlations[price_col] = price_results["correlation"]
                         
                         # Create a DataFrame for the heatmap
-                        corr_df = pd.DataFrame([ndvi_correlations], index=["NDVI Anomaly"])
+                        corr_df = pd.DataFrame([ndvi_correlations], index=["Anomalia NDVI"])
                         
                         # Create the heatmap
                         fig = plot_correlation_heatmap(
                             corr_df,
-                            title="NDVI Anomaly to Price Correlation"
+                            title="Korelacja anomalii NDVI z cenami"
                         )
                         st.plotly_chart(fig, use_container_width=True)
                 
                 # Display correlation at different lags
-                st.markdown("### Correlation at Different Time Lags")
+                st.markdown("### Korelacja przy różnych opóźnieniach czasowych")
                 st.markdown("""
-                This analysis shows how NDVI anomalies correlate with price returns at different time lags.
-                A strong correlation at a specific lag suggests that NDVI changes might predict price movements.
+                Ta analiza pokazuje, jak anomalie NDVI korelują ze zmianami cen przy różnych opóźnieniach czasowych.
+                Silna korelacja przy określonym opóźnieniu sugeruje, że zmiany NDVI mogą przewidywać ruchy cen.
                 """)
                 
                 # Select metric and commodity
@@ -647,9 +648,9 @@ if selected_field:
                 
                 with col1:
                     selected_metric = st.selectbox(
-                        "Select NDVI Metric",
+                        "Wybierz wskaźnik NDVI",
                         options=["ndvi_anomaly", "ndvi_pct_diff"],
-                        format_func=lambda x: "NDVI Anomaly (Z-Score)" if x == "ndvi_anomaly" else "NDVI % Difference from Mean"
+                        format_func=lambda x: "Anomalia NDVI (Z-Score)" if x == "ndvi_anomaly" else "NDVI % różnicy od średniej"
                     )
                 
                 with col2:
@@ -657,16 +658,18 @@ if selected_field:
                         commodity_options = []
                         for commodity in results["commodities"]:
                             for period in [1, 5, 20]:
+                                period_label = {1: "1d", 5: "5d", 20: "20d"}[period]
                                 commodity_options.append(f"{commodity}_{period}d_return")
                         
                         selected_commodity = st.selectbox(
-                            "Select Commodity Return",
-                            options=commodity_options
+                            "Wybierz stopę zwrotu towaru",
+                            options=commodity_options,
+                            format_func=lambda x: x.replace("_return", " zwrot").replace("_", " ")
                         )
                     else:
                         selected_commodity = st.selectbox(
-                            "Select Commodity Return",
-                            options=["No commodities available"]
+                            "Wybierz stopę zwrotu towaru",
+                            options=["Brak dostępnych towarów"]
                         )
                 
                 # Create a plot of correlation vs lag
@@ -686,26 +689,26 @@ if selected_field:
                     
                     # Create DataFrame for plotting
                     lag_df = pd.DataFrame({
-                        "Lag (Days)": lags,
-                        "Correlation": correlations,
-                        "P-Value": p_values,
-                        "Significant": [p <= 0.05 for p in p_values]
+                        "Opóźnienie (dni)": lags,
+                        "Korelacja": correlations,
+                        "Wartość P": p_values,
+                        "Istotne": [p <= 0.05 for p in p_values]
                     })
                     
                     # Sort by lag
-                    lag_df = lag_df.sort_values("Lag (Days)")
+                    lag_df = lag_df.sort_values("Opóźnienie (dni)")
                     
                     # Create plot
                     fig = go.Figure()
                     
                     # Add correlation line
                     fig.add_trace(go.Scatter(
-                        x=lag_df["Lag (Days)"],
-                        y=lag_df["Correlation"],
+                        x=lag_df["Opóźnienie (dni)"],
+                        y=lag_df["Korelacja"],
                         mode='lines+markers',
-                        name='Correlation',
+                        name='Korelacja',
                         marker=dict(
-                            color=lag_df["Significant"].map({True: 'green', False: 'gray'}),
+                            color=lag_df["Istotne"].map({True: 'green', False: 'gray'}),
                             size=10
                         )
                     ))
@@ -713,9 +716,9 @@ if selected_field:
                     # Add reference line at y=0
                     fig.add_shape(
                         type="line",
-                        x0=min(lag_df["Lag (Days)"]),
+                        x0=min(lag_df["Opóźnienie (dni)"]),
                         y0=0,
-                        x1=max(lag_df["Lag (Days)"]),
+                        x1=max(lag_df["Opóźnienie (dni)"]),
                         y1=0,
                         line=dict(
                             color="black",
@@ -724,11 +727,17 @@ if selected_field:
                         )
                     )
                     
+                    # Tłumaczenie nazw wskaźników dla tytułu wykresu
+                    metric_name = {
+                        "ndvi_anomaly": "anomalii NDVI",
+                        "ndvi_pct_diff": "zmiany % NDVI"
+                    }.get(selected_metric, selected_metric)
+                    
                     # Update layout
                     fig.update_layout(
-                        title=f"Correlation between {selected_metric} and {selected_commodity} at Different Lags",
-                        xaxis_title="Lag (Days)",
-                        yaxis_title="Correlation",
+                        title=f"Korelacja między {metric_name} a {selected_commodity.replace('_return', '').replace('_', ' ')} przy różnych opóźnieniach",
+                        xaxis_title="Opóźnienie (dni)",
+                        yaxis_title="Korelacja",
                         height=500,
                         template="plotly_white",
                         hovermode="x unified"
