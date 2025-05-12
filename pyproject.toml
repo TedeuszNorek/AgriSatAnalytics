@@ -34,4 +34,5 @@ dependencies = [
     "seaborn>=0.13.2",
     "geopy>=2.4.1",
     "anthropic>=0.51.0",
+    "openai>=1.78.1",
 ]
