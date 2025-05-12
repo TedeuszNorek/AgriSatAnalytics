@@ -523,6 +523,305 @@ def create_choropleth_map(
     
     return m
 
+def create_index_map(
+    image_data: np.ndarray,
+    index_type: str = "ndvi",
+    title: str = None,
+    figsize: Tuple[int, int] = (10, 8),
+    cmap: str = None,
+    vmin: float = None,
+    vmax: float = None
+) -> plt.Figure:
+    """
+    Create a map visualization of a satellite index.
+    
+    Args:
+        image_data: Numpy array containing the index values
+        index_type: Type of index (ndvi, evi, etc.)
+        title: Map title
+        figsize: Figure size in inches
+        cmap: Optional custom colormap
+        vmin: Optional minimum value for color scaling
+        vmax: Optional maximum value for color scaling
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Get color palette for the index type
+    palette = COLOR_PALETTES.get(index_type.lower(), {
+        "cmap": "viridis",
+        "vmin": None,
+        "vmax": None,
+        "bad_color": "grey"
+    })
+    
+    # Override with custom values if provided
+    if cmap:
+        palette["cmap"] = cmap
+    if vmin is not None:
+        palette["vmin"] = vmin
+    if vmax is not None:
+        palette["vmax"] = vmax
+    
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Create masked array for NaN values
+    masked_data = np.ma.masked_invalid(image_data)
+    
+    # Plot the image
+    im = ax.imshow(
+        masked_data,
+        cmap=palette["cmap"],
+        vmin=palette["vmin"],
+        vmax=palette["vmax"]
+    )
+    
+    # Add colorbar
+    cbar = fig.colorbar(im, ax=ax, label=index_type.upper())
+    
+    # Set title and remove axes ticks
+    ax.set_title(title or f"{index_type.upper()} Map")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    # Tight layout
+    plt.tight_layout()
+    
+    return fig
+
+def create_multi_temporal_figure(
+    images: List[np.ndarray],
+    dates: List[Union[str, datetime.datetime]],
+    index_type: str = "ndvi",
+    title: str = "Multi-temporal Analysis",
+    figsize: Tuple[int, int] = (15, 10),
+    max_cols: int = 3
+) -> plt.Figure:
+    """
+    Create a multi-temporal visualization of satellite indices.
+    
+    Args:
+        images: List of numpy arrays containing index values
+        dates: List of dates corresponding to the images
+        index_type: Type of index (ndvi, evi, etc.)
+        title: Figure title
+        figsize: Figure size in inches
+        max_cols: Maximum number of columns in the grid
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Get color palette for the index type
+    palette = COLOR_PALETTES.get(index_type.lower(), {
+        "cmap": "viridis",
+        "vmin": None,
+        "vmax": None,
+        "bad_color": "grey"
+    })
+    
+    # Calculate grid dimensions
+    n_images = len(images)
+    n_cols = min(max_cols, n_images)
+    n_rows = (n_images + n_cols - 1) // n_cols  # Ceiling division
+    
+    # Create figure and axes grid
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    fig.suptitle(title, fontsize=16)
+    
+    # Ensure axes is always a 2D array
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1:
+        axes = axes.reshape(1, -1)
+    elif n_cols == 1:
+        axes = axes.reshape(-1, 1)
+    
+    # Plot each image
+    for i, (img, date) in enumerate(zip(images, dates)):
+        row = i // n_cols
+        col = i % n_cols
+        ax = axes[row, col]
+        
+        # Format the date
+        if isinstance(date, datetime.datetime):
+            date_str = date.strftime("%Y-%m-%d")
+        else:
+            date_str = date
+        
+        # Create masked array for NaN values
+        masked_img = np.ma.masked_invalid(img)
+        
+        # Plot the image
+        im = ax.imshow(
+            masked_img,
+            cmap=palette["cmap"],
+            vmin=palette["vmin"],
+            vmax=palette["vmax"]
+        )
+        
+        # Set title and remove axes ticks
+        ax.set_title(date_str)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    
+    # Hide unused subplots
+    for i in range(n_images, n_rows * n_cols):
+        row = i // n_cols
+        col = i % n_cols
+        axes[row, col].axis('off')
+    
+    # Add a single colorbar for the whole figure
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = fig.colorbar(im, cax=cbar_ax, label=index_type.upper())
+    
+    # Adjust layout
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.9, top=0.9)
+    
+    return fig
+
+def create_anomaly_figure(
+    base_image: np.ndarray,
+    anomaly_image: np.ndarray,
+    title: str = "Anomaly Detection",
+    figsize: Tuple[int, int] = (15, 6)
+) -> plt.Figure:
+    """
+    Create a visualization comparing base image with anomaly detection.
+    
+    Args:
+        base_image: Numpy array containing the original index values
+        anomaly_image: Numpy array containing the anomaly scores
+        title: Figure title
+        figsize: Figure size in inches
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Get color palettes
+    base_palette = COLOR_PALETTES.get("ndvi", {
+        "cmap": "RdYlGn",
+        "vmin": -0.2,
+        "vmax": 1.0,
+        "bad_color": "grey"
+    })
+    
+    anomaly_palette = COLOR_PALETTES.get("anomaly", {
+        "cmap": "RdYlBu_r",
+        "vmin": -3.0,
+        "vmax": 3.0,
+        "bad_color": "grey"
+    })
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    fig.suptitle(title, fontsize=16)
+    
+    # Plot the base image
+    masked_base = np.ma.masked_invalid(base_image)
+    im1 = ax1.imshow(
+        masked_base,
+        cmap=base_palette["cmap"],
+        vmin=base_palette["vmin"],
+        vmax=base_palette["vmax"]
+    )
+    ax1.set_title("Original Image")
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+    
+    # Add colorbar
+    cbar1 = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    cbar1.set_label("NDVI")
+    
+    # Plot the anomaly image
+    masked_anomaly = np.ma.masked_invalid(anomaly_image)
+    im2 = ax2.imshow(
+        masked_anomaly,
+        cmap=anomaly_palette["cmap"],
+        vmin=anomaly_palette["vmin"],
+        vmax=anomaly_palette["vmax"]
+    )
+    ax2.set_title("Anomaly Detection")
+    ax2.set_xticks([])
+    ax2.set_yticks([])
+    
+    # Add colorbar
+    cbar2 = fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
+    cbar2.set_label("Z-Score")
+    
+    # Adjust layout
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9)
+    
+    return fig
+
+def create_histogram_figure(
+    image_data: np.ndarray,
+    title: str = "Value Distribution",
+    figsize: Tuple[int, int] = (8, 6),
+    bins: int = 50,
+    color: str = "steelblue"
+) -> plt.Figure:
+    """
+    Create a histogram of pixel values.
+    
+    Args:
+        image_data: Numpy array containing the values
+        title: Figure title
+        figsize: Figure size in inches
+        bins: Number of histogram bins
+        color: Bar color
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Flatten the image data and remove NaNs
+    valid_data = image_data.flatten()
+    valid_data = valid_data[~np.isnan(valid_data)]
+    
+    # Plot histogram
+    ax.hist(valid_data, bins=bins, color=color, alpha=0.7)
+    
+    # Set labels and title
+    ax.set_xlabel("Value")
+    ax.set_ylabel("Frequency")
+    ax.set_title(title)
+    
+    # Add grid
+    ax.grid(True, alpha=0.3)
+    
+    # Tight layout
+    plt.tight_layout()
+    
+    return fig
+
+def fig_to_base64(fig: plt.Figure) -> str:
+    """
+    Convert a matplotlib figure to base64 string.
+    
+    Args:
+        fig: Matplotlib figure
+        
+    Returns:
+        Base64 encoded string
+    """
+    import io
+    import base64
+    
+    # Save figure to a BytesIO object
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    
+    # Encode as base64
+    img_str = base64.b64encode(buf.read()).decode("ascii")
+    
+    return img_str
+
 def plot_correlation_heatmap(
     correlation_matrix: pd.DataFrame,
     title: str = "Correlation Heatmap",
