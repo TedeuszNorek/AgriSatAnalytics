@@ -188,23 +188,61 @@ if data_option == "Upload GeoJSON" and manage_option == "Add New Field":
             logger.error(f"Error processing GeoJSON file: {traceback.format_exc()}")
 
 elif data_option == "Draw on Map" and manage_option == "Add New Field":
-    st.markdown("## Draw Field Boundary")
+    st.markdown("## Wybierz obszar do analizy")
     
-    # Inicjalizacja stanu sesji dla przechowywania narysowanych obiektów
+    # Inicjalizacja stanu sesji
     if "drawn_features" not in st.session_state:
         st.session_state.drawn_features = None
     
-    # Wybór lokalizacji początkowej
-    col1, col2 = st.columns(2)
+    if 'drawn_polygon' not in st.session_state:
+        st.session_state.drawn_polygon = None
+    
+    # Dodaj wyszukiwarkę lokalizacji
+    from geopy.geocoders import Nominatim
+    
+    col1, col2 = st.columns([3, 1])
+    
     with col1:
-        default_lat = 50.0611
-        default_lon = 19.9383
-        lat = st.number_input("Latitude", value=default_lat, format="%.6f", help="Enter the latitude for map center")
+        location_name = st.text_input("Wyszukaj lokalizację (np. 'Brazil', 'Rio de Janeiro', 'Sao Paulo')", 
+                                      value="Brazil" if "location_name" not in st.session_state else st.session_state.get("location_name", ""))
+    
     with col2:
-        lon = st.number_input("Longitude", value=default_lon, format="%.6f", help="Enter the longitude for map center")
+        search_button = st.button("Wyszukaj", use_container_width=True)
+    
+    if search_button or ("location_coords" not in st.session_state and location_name):
+        try:
+            # Geocoding
+            geolocator = Nominatim(user_agent="agro-insight")
+            location = geolocator.geocode(location_name)
+            
+            if location:
+                lat, lon = location.latitude, location.longitude
+                st.session_state.location_coords = (lat, lon)
+                st.session_state.location_name = location_name
+                st.session_state.location_info = location
+                st.success(f"Znaleziono lokalizację: {location}")
+            else:
+                st.error(f"Nie znaleziono lokalizacji '{location_name}'")
+                # Domyślne współrzędne (Brazylia)
+                lat, lon = -10.3333, -53.2000
+                st.session_state.location_coords = (lat, lon)
+        except Exception as e:
+            st.error(f"Błąd podczas wyszukiwania lokalizacji: {str(e)}")
+            # Domyślne współrzędne (Brazylia)
+            lat, lon = -10.3333, -53.2000
+            st.session_state.location_coords = (lat, lon)
+    elif "location_coords" in st.session_state:
+        lat, lon = st.session_state.location_coords
+    else:
+        # Domyślne współrzędne (Brazylia)
+        lat, lon = -10.3333, -53.2000
+        st.session_state.location_coords = (lat, lon)
+    
+    # Wybór zoomu mapy
+    zoom_level = st.slider("Poziom przybliżenia mapy", min_value=3, max_value=18, value=5)
     
     # Tworzenie mapy z narzędziami do rysowania
-    m = folium.Map(location=[lat, lon], zoom_start=13)
+    m = folium.Map(location=[lat, lon], zoom_start=zoom_level)
     
     # Dodaj kontrolkę rysowania
     draw = Draw(
@@ -224,58 +262,186 @@ elif data_option == "Draw on Map" and manage_option == "Add New Field":
     )
     draw.add_to(m)
     
+    # Dodaj informacje o regionie jeśli są dostępne
+    if "location_info" in st.session_state and hasattr(st.session_state.location_info, "raw"):
+        if "boundingbox" in st.session_state.location_info.raw:
+            bbox = st.session_state.location_info.raw["boundingbox"]
+            # Format [min_lat, max_lat, min_lon, max_lon]
+            if len(bbox) == 4:
+                south, north, west, east = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+                
+                # Rysowanie granic regionu
+                folium.Rectangle(
+                    bounds=[[south, west], [north, east]],
+                    color='blue',
+                    fill=True,
+                    fill_color='blue',
+                    fill_opacity=0.1,
+                    weight=2
+                ).add_to(m)
+    
     # Dodaj instrukcje
     st.markdown("""
-    ### Drawing Instructions:
-    1. Use the draw tools on the left side of the map to draw a field boundary
-    2. You can use the polygon tool (▲) for custom shapes or rectangle tool (□) for rectangular fields
-    3. Once drawn, click on the edit button (✎) to modify your shape if needed
-    4. When finished, proceed to fill in the field details below
+    ### Instrukcje:
+    1. Wyszukaj interesującą lokalizację (np. "Brazil", "Amazonia", "Rio Grande do Sul")
+    2. Dostosuj poziom przybliżenia mapy przy użyciu suwaka
+    3. Możesz narysować konkretny obszar używając narzędzi rysowania po lewej stronie mapy (opcjonalnie)
+    4. Kontynuuj, aby zapisać wybrany obszar i rozpocząć analizę
     """)
     
     # Wyświetl mapę
     folium_static(m, width=800, height=500)
     
-    # Śledzimy stan rysowania przez sesję streamlit
-    if 'drawn_polygon' not in st.session_state:
-        st.session_state.drawn_polygon = None
+    # Uproszczone wybieranie typu pola bez konieczności rysowania
+    st.markdown("## Zapisz wybrany obszar")
     
-    if 'drawn_features' not in st.session_state:
-        st.session_state.drawn_features = None
+    col1, col2 = st.columns(2)
     
-    # Dostępne akcje rysowania
-    draw_actions = ["polygon", "rectangle", "circle", "marker", "clear"]
-    selected_action = st.selectbox("Wybierz narzędzie rysowania", options=draw_actions)
+    with col1:
+        field_name = st.text_input("Nazwa obszaru", value=location_name if "location_name" in st.session_state else "Nowy obszar")
     
-    draw_button = st.button("Symuluj narysowanie pola")
+    with col2:
+        crop_type = st.selectbox("Typ uprawy", options=[""] + CROP_TYPES)
     
-    # Przetwarzanie narysowanych obiektów
-    if draw_button:
-        # W tej demonstracji generujemy przykładowy obiekt GeoJSON jako zastępstwo
-        # ponieważ rzeczywiste przechwytywanie rysowania wymaga integracji JS z Streamlit
-        
-        # Przykładowy polygon dla Warszawy
-        if selected_action in ["polygon", "rectangle"]:
-            st.session_state.drawn_polygon = {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [[
-                        [21.0122, 52.2297],  # Warszawa centrum
-                        [21.0322, 52.2397],
-                        [21.0522, 52.2297],
-                        [21.0322, 52.2197],
-                        [21.0122, 52.2297]
-                    ]]
-                },
-                "properties": {}
-            }
-            st.success("Pole zostało narysowane! Możesz kontynuować poniżej.")
-        elif selected_action == "clear":
-            st.session_state.drawn_polygon = None
-            st.info("Usunięto narysowane pole.")
+    # Przycisk do zapisania bez konieczności rysowania kształtu
+    save_region_button = st.button("Zapisz obszar i rozpocznij analizę", use_container_width=True)
+    
+    if save_region_button:
+        # Tworzymy polygon na podstawie granic wyszukanego regionu
+        if "location_info" in st.session_state and hasattr(st.session_state.location_info, "raw"):
+            if "boundingbox" in st.session_state.location_info.raw:
+                try:
+                    # Format [min_lat, max_lat, min_lon, max_lon]
+                    bbox = st.session_state.location_info.raw["boundingbox"]
+                    south, north, west, east = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+                    
+                    # Tworzymy prostokątny polygon z granic
+                    coords = [
+                        [west, south],
+                        [east, south],
+                        [east, north],
+                        [west, north],
+                        [west, south]
+                    ]
+                    
+                    # Tworzenie GeoJSON
+                    geojson_data = {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [coords]
+                        },
+                        "properties": {}
+                    }
+                    
+                    # Zapisz do stanu sesji
+                    st.session_state.drawn_polygon = geojson_data
+                    st.session_state.drawn_features = geojson_data
+                    
+                    # Oblicz środek i powierzchnię
+                    center_lat = (south + north) / 2
+                    center_lon = (west + east) / 2
+                    
+                    # Przybliżona powierzchnia (w stopniach kwadratowych)
+                    from shapely.geometry import Polygon
+                    import pyproj
+                    
+                    polygon = Polygon(coords)
+                    geod = pyproj.Geod(ellps="WGS84")
+                    area_m2 = abs(geod.geometry_area_perimeter(polygon)[0])
+                    area_hectares = area_m2 / 10000  # Konwersja na hektary
+                    
+                    # Zapis do bazy danych
+                    try:
+                        # Create database session
+                        db = next(get_db())
+                        
+                        # Sprawdźmy, czy pole o tej nazwie już istnieje
+                        existing_field = db.query(Field).filter(Field.name == field_name).first()
+                        
+                        if existing_field:
+                            # Aktualizuj istniejące pole
+                            existing_field.geojson = geojson_data
+                            existing_field.center_lat = center_lat
+                            existing_field.center_lon = center_lon
+                            existing_field.area_hectares = area_hectares
+                            existing_field.crop_type = crop_type if crop_type else None
+                            db.commit()
+                            st.success(f"Zaktualizowano obszar '{field_name}'! Możesz teraz przejść do analizy.")
+                        else:
+                            # Utwórz nowe pole
+                            new_field = Field(
+                                name=field_name,
+                                geojson=geojson_data,
+                                center_lat=center_lat,
+                                center_lon=center_lon,
+                                area_hectares=area_hectares,
+                                crop_type=crop_type if crop_type else None
+                            )
+                            
+                            # Dodaj i zatwierdź w bazie danych
+                            db.add(new_field)
+                            db.commit()
+                            
+                            st.success(f"Obszar '{field_name}' został zapisany! Przejdź do Field Analysis, aby zobaczyć dane.")
+                            st.balloons()
+                    except Exception as e:
+                        st.error(f"Błąd podczas zapisywania obszaru: {str(e)}")
+                        logger.error(f"Błąd podczas zapisywania obszaru: {traceback.format_exc()}")
+                except Exception as e:
+                    st.error(f"Błąd podczas przetwarzania granic regionu: {str(e)}")
+            else:
+                st.warning("Nie udało się określić granic regionu. Spróbuj wyszukać bardziej precyzyjną lokalizację.")
         else:
-            st.warning(f"Akcja '{selected_action}' nie jest obecnie obsługiwana w tym demo.")
+            st.warning("Brak informacji o regionie. Wyszukaj lokalizację przed zapisaniem.")
+            
+    # Wyjaśnienie dla użytkownika
+    with st.expander("Dlaczego nie muszę rysować obszaru?"):
+        st.markdown("""
+        Aplikacja automatycznie używa granic geograficznych wyszukanego regionu (np. Brazylii, stanu, miasta) 
+        jako obszaru analizy. Jeśli potrzebujesz dokładniejszego obszaru, możesz użyć narzędzi rysowania 
+        na mapie przed zapisaniem.
+        """)
+            
+    # STARA IMPLEMENTACJA RYSOWANIA - Schowana w expander
+    with st.expander("Zaawansowane opcje rysowania (opcjonalne)"):
+        # Dostępne akcje rysowania
+        draw_actions = ["polygon", "rectangle", "circle", "marker", "clear"]
+        selected_action = st.selectbox("Wybierz narzędzie rysowania", options=draw_actions)
+        
+        draw_button = st.button("Symuluj narysowanie pola")
+        
+        # Przetwarzanie narysowanych obiektów
+        if draw_button:
+            # W tej demonstracji generujemy przykładowy obiekt GeoJSON jako zastępstwo
+            # ponieważ rzeczywiste przechwytywanie rysowania wymaga integracji JS z Streamlit
+            
+            # Użyj środka wyszukanego regionu jako podstawy dla narysowanego kształtu
+            lat, lon = st.session_state.location_coords
+            
+            if selected_action in ["polygon", "rectangle"]:
+                # Tworzymy prostokątny polygon wokół centrum
+                delta = 0.05  # Około 5km
+                st.session_state.drawn_polygon = {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [lon - delta, lat - delta],
+                            [lon + delta, lat - delta],
+                            [lon + delta, lat + delta],
+                            [lon - delta, lat + delta],
+                            [lon - delta, lat - delta]
+                        ]]
+                    },
+                    "properties": {}
+                }
+                st.success("Pole zostało narysowane! Możesz kontynuować poniżej.")
+            elif selected_action == "clear":
+                st.session_state.drawn_polygon = None
+                st.info("Usunięto narysowane pole.")
+            else:
+                st.warning(f"Akcja '{selected_action}' nie jest obecnie obsługiwana w tym demo.")
     
     # Sprawdź czy mamy narysowany polygon
     if st.session_state.drawn_polygon:
