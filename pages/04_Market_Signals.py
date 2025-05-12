@@ -746,43 +746,63 @@ if selected_field:
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Display interpretation
-                    max_corr_idx = abs(lag_df["Correlation"]).idxmax()
-                    max_corr_lag = lag_df.loc[max_corr_idx, "Lag (Days)"]
-                    max_corr_value = lag_df.loc[max_corr_idx, "Correlation"]
-                    max_corr_significant = lag_df.loc[max_corr_idx, "Significant"]
+                    max_corr_idx = abs(lag_df["Korelacja"]).idxmax()
+                    max_corr_lag = lag_df.loc[max_corr_idx, "Opóźnienie (dni)"]
+                    max_corr_value = lag_df.loc[max_corr_idx, "Korelacja"]
+                    max_corr_significant = lag_df.loc[max_corr_idx, "Istotne"]
                     
-                    st.markdown("### Interpretation")
+                    st.markdown("### Interpretacja wyników")
+                    
+                    # Tłumaczenie nazw wskaźników
+                    metric_name = {
+                        "ndvi_anomaly": "anomalii NDVI",
+                        "ndvi_pct_diff": "procentowej zmiany NDVI"
+                    }.get(selected_metric, selected_metric)
+                    
+                    # Wydobycie bardziej czytelnej nazwy towaru
+                    commodity_parts = selected_commodity.split('_')
+                    commodity_name = commodity_parts[0]
+                    if len(commodity_parts) > 1:
+                        period_label = next((part for part in commodity_parts if "d" in part), "")
+                        if period_label:
+                            period_days = period_label.replace("d", "")
+                            period_text = f"({period_days}-dniowa stopa zwrotu)"
+                            commodity_display = f"{commodity_name} {period_text}"
+                        else:
+                            commodity_display = commodity_name
+                    else:
+                        commodity_display = commodity_name
                     
                     if max_corr_significant:
                         if max_corr_value > 0:
                             st.success(f"""
-                            ✅ **Significant positive correlation** detected at {max_corr_lag} days lag (r = {max_corr_value:.3f}).
+                            ✅ **Wykryto istotną pozytywną korelację** przy opóźnieniu {max_corr_lag} dni (r = {max_corr_value:.3f}).
                             
-                            This suggests that changes in NDVI tend to precede similar changes in {selected_commodity.split('_')[0]} prices 
-                            by approximately {max_corr_lag} days. A positive correlation indicates that higher NDVI values
-                            (healthier vegetation) are associated with higher prices.
+                            Sugeruje to, że zmiany wskaźnika NDVI wyprzedzają podobne zmiany cen {commodity_name} 
+                            o około {max_corr_lag} dni. Pozytywna korelacja oznacza, że wyższe wartości NDVI
+                            (zdrowsza roślinność) są powiązane z wyższymi cenami.
                             """)
                         else:
                             st.success(f"""
-                            ✅ **Significant negative correlation** detected at {max_corr_lag} days lag (r = {max_corr_value:.3f}).
+                            ✅ **Wykryto istotną negatywną korelację** przy opóźnieniu {max_corr_lag} dni (r = {max_corr_value:.3f}).
                             
-                            This suggests that changes in NDVI tend to precede opposite changes in {selected_commodity.split('_')[0]} prices 
-                            by approximately {max_corr_lag} days. A negative correlation indicates that higher NDVI values
-                            (healthier vegetation) are associated with lower prices, possibly due to increased supply.
+                            Sugeruje to, że zmiany wskaźnika NDVI wyprzedzają przeciwne zmiany cen {commodity_name} 
+                            o około {max_corr_lag} dni. Negatywna korelacja oznacza, że wyższe wartości NDVI
+                            (zdrowsza roślinność) są powiązane z niższymi cenami, możliwe że z powodu zwiększonej podaży.
                             """)
                     else:
                         st.info(f"""
-                        ℹ️ No statistically significant correlation was found between {selected_metric} and {selected_commodity}
-                        at any of the tested lag periods. The strongest non-significant correlation was r = {max_corr_value:.3f}
-                        at a lag of {max_corr_lag} days.
+                        ℹ️ Nie znaleziono statystycznie istotnej korelacji między {metric_name} a cenami {commodity_display}
+                        przy żadnym z testowanych okresów opóźnienia. Najsilniejsza nieistotna korelacja wynosiła r = {max_corr_value:.3f}
+                        przy opóźnieniu {max_corr_lag} dni.
                         """)
             
             # Display Granger causality results
             if "granger_results" in results:
-                st.markdown("### Granger Causality Test Results")
+                st.markdown("### Wyniki testu przyczynowości Grangera")
                 st.markdown("""
-                Granger causality tests whether changes in NDVI can predict future changes in commodity prices,
-                and vice versa. A significant result suggests a predictive relationship.
+                Test przyczynowości Grangera sprawdza, czy zmiany NDVI mogą przewidzieć przyszłe zmiany cen towarów rolnych,
+                i odwrotnie. Istotny wynik sugeruje zależność predykcyjną.
                 """)
                 
                 # Display results as a table
@@ -790,23 +810,61 @@ if selected_field:
                 
                 for ndvi_metric, commodity_results in results["granger_results"].items():
                     for commodity, result in commodity_results.items():
-                        granger_data.append({
-                            "NDVI Metric": "NDVI Anomaly (Z-Score)" if ndvi_metric == "ndvi_anomaly" else "NDVI % Difference",
-                            "Commodity": commodity,
-                            "Conclusion": result["conclusion"],
-                            "Best Lag": "N/A" if "ndvi_to_price_p_values" not in result else min(
+                        # Tłumaczenie metryki NDVI
+                        if ndvi_metric == "ndvi_anomaly":
+                            metric_display = "Anomalia NDVI (Z-Score)"
+                        else:
+                            metric_display = "NDVI % różnicy" 
+                        
+                        # Tłumaczenie wniosków
+                        if isinstance(result.get("conclusion"), str):
+                            conclusion = result["conclusion"]
+                            if "NDVI causes" in conclusion:
+                                conclusion = conclusion.replace("NDVI causes", "NDVI powoduje zmiany cen")
+                            if "No causality" in conclusion:
+                                conclusion = "Brak przyczynowości"
+                            if "Price causes" in conclusion:
+                                conclusion = conclusion.replace("Price causes", "Ceny powodują zmiany")
+                            if "Bidirectional" in conclusion:
+                                conclusion = "Dwukierunkowa zależność"
+                        else:
+                            conclusion = "Brak wniosku"
+                        
+                        # Najlepsze opóźnienie
+                        if "ndvi_to_price_p_values" not in result:
+                            best_lag = "N/D" 
+                        else:
+                            best_lag = min(
                                 result["ndvi_to_price_p_values"], 
                                 key=lambda x: result["ndvi_to_price_p_values"][x]
                             )
+                            
+                        granger_data.append({
+                            "Wskaźnik NDVI": metric_display,
+                            "Towar": commodity,
+                            "Wniosek": conclusion,
+                            "Najlepsze opóźnienie": best_lag
                         })
                 
                 if granger_data:
                     st.dataframe(pd.DataFrame(granger_data))
                 else:
-                    st.info("No Granger causality test results available.")
+                    st.info("Brak dostępnych wyników testu przyczynowości Grangera.")
+                    
+                # Dodaj bardziej szczegółowe wyjaśnienie
+                st.markdown("""
+                #### Co to oznacza w praktyce?
+                
+                - **NDVI powoduje zmiany cen** - historyczne wartości NDVI pomagają przewidzieć przyszłe ceny.
+                - **Ceny powodują zmiany NDVI** - historyczne ceny pomagają przewidzieć przyszłe wartości NDVI.
+                - **Dwukierunkowa zależność** - oba wskaźniki wzajemnie się przewidują.
+                - **Brak przyczynowości** - nie ma statystycznie istotnej zależności predykcyjnej.
+                
+                Najlepsze opóźnienie wskazuje, ile dni wcześniej trzeba obserwować jeden wskaźnik, aby przewidzieć drugi.
+                """)
         else:
             # Display help information if no analysis has been run
-            st.info("Run the Market Signals analysis first to see correlation results.")
+            st.info("Uruchom najpierw analizę sygnałów rynkowych, aby zobaczyć wyniki korelacji.")
     
     with tab3:
         st.subheader("Trading Strategy")
