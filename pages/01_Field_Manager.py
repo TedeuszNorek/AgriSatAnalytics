@@ -64,7 +64,7 @@ st.title("Field Manager")
 st.markdown("Wyszukaj, dodaj i analizuj obszary rolne")
 
 # Główne zakładki
-tab1, tab2, tab3 = st.tabs(["Wyszukaj i dodaj obszar", "Zarządzaj obszarami", "Analiza danych satelitarnych"])
+tab1, tab2, tab3, tab4 = st.tabs(["Wyszukaj i dodaj obszar", "Zarządzaj obszarami", "Analiza danych satelitarnych", "Prognoza plonów"])
 
 # Zakładka 1: Wyszukiwanie i dodawanie obszaru
 with tab1:
@@ -681,6 +681,410 @@ with tab3:
     
     except Exception as e:
         st.error(f"Błąd podczas pobierania danych: {str(e)}")
+
+# Zakładka 4: Prognoza plonów
+with tab4:
+    st.header("Prognoza plonów")
+    
+    # Import from database.py
+    from database import get_db, Field, YieldForecast, TimeSeries
+    
+    # Funkcja do tworzenia przykładowych danych pól
+    def create_sample_fields():
+        """Tworzy przykładowe dane pól do demonstracji"""
+        field_attrs = dir(Field)
+        
+        sample_fields = []
+        
+        # Pole 1: Przykładowe pole pszenicy w Polsce
+        field1 = Field()
+        field1.id = 1
+        field1.name = "Pole pszenicy - Mazowsze"
+        field1.center_lat = 52.2297
+        field1.center_lon = 21.0122
+        field1.area_hectares = 15.5
+        field1.crop_type = "Wheat"
+        if 'geojson' in field_attrs:
+            # Przykładowy GeoJSON dla prostokątnego pola
+            field1.geojson = {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [21.0100, 52.2280],
+                        [21.0145, 52.2280],
+                        [21.0145, 52.2310],
+                        [21.0100, 52.2310],
+                        [21.0100, 52.2280]
+                    ]]
+                }
+            }
+        if 'created_at' in field_attrs:
+            field1.created_at = datetime.datetime.now()
+        
+        # Pole 2: Przykładowe pole kukurydzy
+        field2 = Field()
+        field2.id = 2
+        field2.name = "Pole kukurydzy - Wielkopolska"
+        field2.center_lat = 52.4083
+        field2.center_lon = 16.9335
+        field2.area_hectares = 22.8
+        field2.crop_type = "Corn"
+        if 'geojson' in field_attrs:
+            # Przykładowy GeoJSON dla prostokątnego pola
+            field2.geojson = {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [16.9300, 52.4060],
+                        [16.9370, 52.4060],
+                        [16.9370, 52.4105],
+                        [16.9300, 52.4105],
+                        [16.9300, 52.4060]
+                    ]]
+                }
+            }
+        if 'created_at' in field_attrs:
+            field2.created_at = datetime.datetime.now()
+        
+        sample_fields.append(field1)
+        sample_fields.append(field2)
+        
+        return sample_fields
+    
+    # Pobierz pola z bazy danych
+    fields = []
+    try:
+        db = next(get_db())
+        fields = db.query(Field).all()
+    except Exception as e:
+        st.error(f"Błąd podczas pobierania pól z bazy danych: {str(e)}")
+    
+    if not fields:
+        st.warning("Nie znaleziono pól w bazie danych. Używam przykładowych pól do demonstracji.")
+        fields = create_sample_fields()
+    
+    # Główna zawartość - podzielona na kolumny dla opcji i wyników
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        st.markdown("### Opcje prognozy")
+        
+        # Wybór pola
+        field_names = [field.name for field in fields]
+        selected_field_name = st.selectbox("Wybierz pole", options=field_names, key="yield_forecast_field")
+        
+        # Pobierz wybrane pole
+        selected_field = next((field for field in fields if field.name == selected_field_name), None)
+        
+        if selected_field:
+            # Typ uprawy (użyj tego z pola, jeśli dostępny)
+            default_crop_type = ""
+            if selected_field.crop_type and selected_field.crop_type in CROP_TYPES:
+                default_crop_type = selected_field.crop_type
+                crop_index = CROP_TYPES.index(default_crop_type)
+            else:
+                crop_index = 0
+            
+            crop_type = st.selectbox(
+                "Typ uprawy",
+                options=[""] + CROP_TYPES,
+                index=0 if not default_crop_type else crop_index + 1,
+                key="yield_forecast_crop"
+            )
+            
+            # Rodzaj prognozy
+            forecast_type = st.radio(
+                "Rodzaj prognozy",
+                ["Plon końcowy sezonu", "Prognoza w czasie"],
+                key="yield_forecast_type"
+            )
+
+            # Dodawanie określenia czasu - określ okres prognozy
+            current_date = datetime.datetime.now().date()
+            current_year = current_date.year
+            
+            forecast_period = st.radio(
+                "Okres prognozy",
+                [f"Krótkoterminowa (do {current_date + datetime.timedelta(days=30)})",
+                 f"Średnioterminowa (do {current_date + datetime.timedelta(days=90)})",
+                 f"Długoterminowa (do {current_date.replace(year=current_year+1)})"],
+                key="yield_forecast_period"
+            )
+            
+            # Pobierz liczbę dni na podstawie wybranego okresu
+            if "Krótkoterminowa" in forecast_period:
+                forecast_horizon = 30
+            elif "Średnioterminowa" in forecast_period:
+                forecast_horizon = 90
+            else:
+                # Dni do końca roku i dodatkowe 30 dni
+                days_to_next_year = (datetime.date(current_year+1, 1, 1) - current_date).days
+                forecast_horizon = days_to_next_year + 30
+            
+            # Opcje danych
+            include_weather = st.checkbox("Uwzględnij dane pogodowe", value=True, key="yield_forecast_weather")
+            include_market = st.checkbox("Uwzględnij dane rynkowe", value=True, key="yield_forecast_market")
+            
+            # Przycisk do uruchomienia prognozy
+            run_forecast = st.button("Uruchom prognozę", type="primary", use_container_width=True, key="yield_forecast_run")
+            
+            st.markdown("### Pomoc")
+            st.markdown("""
+            - **Plon końcowy sezonu**: Przewiduje końcowy plon przy zbiorach
+            - **Prognoza w czasie**: Przewiduje rozwój plonu w czasie
+            - **Dane pogodowe**: Uwzględnia temperaturę, opady itp.
+            - **Dane rynkowe**: Uwzględnia dane kontraktów terminowych na surowce
+            """)
+    
+    with col2:
+        # Wyświetl informacje o polu
+        if selected_field:
+            # Wyświetl informacje o polu
+            st.markdown(f"### Pole: {selected_field.name}")
+            
+            info_cols = st.columns(3)
+            
+            with info_cols[0]:
+                st.markdown(f"**Typ uprawy:** {selected_field.crop_type or 'Nie określono'}")
+            
+            with info_cols[1]:
+                st.markdown(f"**Powierzchnia:** {selected_field.area_hectares:.2f} hektarów")
+            
+            with info_cols[2]:
+                st.markdown(f"**Lokalizacja:** Lat: {selected_field.center_lat:.6f}, Lon: {selected_field.center_lon:.6f}")
+            
+            # Sprawdź, czy prognoza powinna zostać uruchomiona
+            if run_forecast:
+                # Zweryfikuj typ uprawy
+                if not crop_type:
+                    st.error("Wybierz typ uprawy, aby wygenerować prognozę plonu.")
+                    st.stop()
+                
+                # Wyświetl komunikat o ładowaniu
+                with st.spinner(f"Generowanie {forecast_type} dla {selected_field.name}..."):
+                    try:
+                        # Tymczasowe użycie danych przykładowych
+                        
+                        # Informacja o przykładowych danych
+                        st.info(f"To jest demonstracja funkcji prognozy plonów z wykorzystaniem przykładowych danych. Okres prognozy: {forecast_horizon} dni od {current_date} do {current_date + datetime.timedelta(days=forecast_horizon)}.")
+                        
+                        # Utwórz wizualizację prognozy
+                        st.markdown("## Wyniki prognozy plonów")
+                        
+                        if forecast_type == "Plon końcowy sezonu":
+                            # Utwórz kolumny dla wyników prognozy
+                            result_cols = st.columns([2, 1])
+                            
+                            with result_cols[0]:
+                                # Utwórz przykładową prognozę do wizualizacji
+                                
+                                # Przykładowa prognoza plonu z przedziałem ufności
+                                predicted_yield = 4.5 + np.random.normal(0, 0.2)  # Średni plon 4.5 t/ha z pewnym szumem
+                                lower_bound = predicted_yield - 0.5
+                                upper_bound = predicted_yield + 0.5
+                                
+                                # Wyświetl metryki
+                                st.metric(
+                                    "Przewidywany plon",
+                                    f"{predicted_yield:.2f} t/ha",
+                                    delta=f"{predicted_yield - 4.0:.2f} vs. zeszły rok"  # Zakładając, że zeszły rok to 4.0 t/ha
+                                )
+                                
+                                st.markdown(f"**Przedział ufności:** {lower_bound:.2f} - {upper_bound:.2f} t/ha")
+                                st.markdown(f"**Całkowity zbiór (szacowany):** {predicted_yield * selected_field.area_hectares:.2f} ton")
+                                
+                                # Utwórz prostą wizualizację prognozy
+                                fig, ax = plt.subplots(figsize=(10, 6))
+                                
+                                # Dane z poprzednich lat (przykładowe)
+                                years = [2022, 2023, 2024, 2025]
+                                yields = [3.8, 4.0, 4.2, predicted_yield]
+                                
+                                # Wykres historycznych i przewidywanych plonów
+                                ax.bar(years[:-1], yields[:-1], color='blue', alpha=0.7, label='Historyczny plon')
+                                ax.bar(years[-1], yields[-1], color='green', alpha=0.7, label='Przewidywany plon')
+                                
+                                # Dodaj słupki błędów dla prognozy
+                                ax.errorbar(years[-1], yields[-1], yerr=[[predicted_yield - lower_bound], [upper_bound - predicted_yield]], 
+                                           fmt='o', color='darkgreen', ecolor='darkgreen', capsize=5)
+                                
+                                # Dodaj etykiety i tytuł
+                                ax.set_xlabel('Rok')
+                                ax.set_ylabel('Plon (ton/hektar)')
+                                ax.set_title(f'Prognoza plonu dla {selected_field.name} - {crop_type}')
+                                
+                                # Dodaj siatkę
+                                ax.grid(True, linestyle='--', alpha=0.7)
+                                
+                                # Dodaj legendę
+                                ax.legend()
+                                
+                                st.pyplot(fig)
+                            
+                            with result_cols[1]:
+                                st.markdown("### Czynniki wpływające na plon")
+                                
+                                # Utwórz przykładowe znaczenie cech
+                                features = ['NDVI (Lipiec)', 'Temperatura (Czerwiec)', 'Opady (Maj-Lipiec)', 
+                                           'Wilgotność gleby (Czerwiec)', 'Poprzedni plon']
+                                importance = [0.35, 0.25, 0.20, 0.15, 0.05]
+                                
+                                # Utwórz wykres znaczenia cech
+                                fig, ax = plt.subplots(figsize=(8, 6))
+                                
+                                y_pos = np.arange(len(features))
+                                ax.barh(y_pos, importance, align='center', color='green', alpha=0.7)
+                                ax.set_yticks(y_pos)
+                                ax.set_yticklabels(features)
+                                ax.invert_yaxis()  # Etykiety czytane od góry do dołu
+                                ax.set_xlabel('Względne znaczenie')
+                                ax.set_title('Znaczenie cech')
+                                
+                                st.pyplot(fig)
+                                
+                                # Warunki pogodowe
+                                st.markdown("### Warunki pogodowe")
+                                st.markdown(f"Temperatura: **Powyżej średniej** (+1.2°C)")
+                                st.markdown(f"Opady: **Poniżej średniej** (-15%)")
+                                st.markdown(f"Stopniodni wzrostu: **720** (Normalne: 650)")
+                                
+                                if include_market:
+                                    # Warunki rynkowe
+                                    st.markdown("### Perspektywa rynkowa")
+                                    st.markdown(f"Aktualna cena {crop_type}: **185 EUR/t**")
+                                    st.markdown(f"Prognoza ceny (zbiory): **195 EUR/t**")
+                                    st.markdown(f"Rekomendacja przechowywania: **Wstrzymaj**")
+                        elif forecast_type == "Prognoza w czasie":
+                            # Utwórz przykładową prognozę szeregów czasowych
+                            today = datetime.datetime.now()
+                            forecast_dates = [(today + datetime.timedelta(days=i*10)) for i in range(forecast_horizon // 10)]
+                            
+                            # Wygeneruj przykładowe dane prognozy z wzorcem sezonowym i rosnącą niepewnością
+                            forecast_data = {}
+                            
+                            # Zacznij od bieżącego stanu (zakładając fazę wzrostu)
+                            current_yield = 2.0  # t/ha
+                            
+                            # Wygeneruj prognozę z rosnącą niepewnością
+                            mean_yields = []
+                            lower_bounds = []
+                            upper_bounds = []
+                            
+                            for i, date in enumerate(forecast_dates):
+                                # Proste modelowanie wzrostu z pewnym szumem
+                                days_from_start = i * 10
+                                progress = min(1.0, days_from_start / 120)  # Zakładając 120 dni do pełnej dojrzałości
+                                
+                                # Logistyczny wzrost do finalnego plonu
+                                max_yield = 4.5  # t/ha
+                                mean_yield = current_yield + (max_yield - current_yield) * (1 / (1 + np.exp(-10 * (progress - 0.5))))
+                                
+                                # Zwiększająca się niepewność im dalej w przyszłość
+                                uncertainty = 0.1 + 0.5 * (i / len(forecast_dates))
+                                
+                                mean_yields.append(mean_yield)
+                                lower_bounds.append(mean_yield - uncertainty)
+                                upper_bounds.append(mean_yield + uncertainty)
+                            
+                            # Utwórz wizualizację prognozy
+                            fig, ax = plt.subplots(figsize=(12, 6))
+                            
+                            # Przekonwertuj daty na formaty do wyświetlenia
+                            date_strs = [date.strftime('%Y-%m-%d') for date in forecast_dates]
+                            
+                            # Wykres średniej prognozy
+                            ax.plot(date_strs, mean_yields, 'o-', color='green', linewidth=2, label='Prognozowany plon')
+                            
+                            # Dodaj przedział ufności
+                            ax.fill_between(date_strs, lower_bounds, upper_bounds, color='green', alpha=0.2, label='Przedział ufności')
+                            
+                            # Dodaj etykiety i tytuł
+                            ax.set_xlabel('Data')
+                            ax.set_ylabel('Prognozowany plon (t/ha)')
+                            ax.set_title(f'Prognoza plonu w czasie dla {selected_field.name} - {crop_type}')
+                            
+                            # Obróć etykiety osi X dla lepszej czytelności
+                            plt.xticks(rotation=45)
+                            
+                            # Dodaj siatkę
+                            ax.grid(True, linestyle='--', alpha=0.7)
+                            
+                            # Dodaj legendę
+                            ax.legend()
+                            
+                            # Dopasuj układ
+                            plt.tight_layout()
+                            
+                            st.pyplot(fig)
+                            
+                            # Dodaj kluczowe daty i fazy wzrostu
+                            st.markdown("### Kluczowe daty i fazy wzrostu")
+                            
+                            # Przykładowe daty faz wzrostu
+                            phase_data = []
+                            
+                            # Oblicz daty na podstawie bieżącej daty
+                            emergence_date = today + datetime.timedelta(days=5)
+                            heading_date = today + datetime.timedelta(days=45)
+                            flowering_date = today + datetime.timedelta(days=70)
+                            maturity_date = today + datetime.timedelta(days=110)
+                            harvest_date = today + datetime.timedelta(days=130)
+                            
+                            phase_data.append({"Faza": "Wschody", "Data": emergence_date.strftime('%Y-%m-%d'), "Prognozowany plon": "N/A"})
+                            phase_data.append({"Faza": "Kłoszenie", "Data": heading_date.strftime('%Y-%m-%d'), "Prognozowany plon": "1.2 t/ha"})
+                            phase_data.append({"Faza": "Kwitnienie", "Data": flowering_date.strftime('%Y-%m-%d'), "Prognozowany plon": "2.5 t/ha"})
+                            phase_data.append({"Faza": "Dojrzałość", "Data": maturity_date.strftime('%Y-%m-%d'), "Prognozowany plon": "4.3 t/ha"})
+                            phase_data.append({"Faza": "Zbiór", "Data": harvest_date.strftime('%Y-%m-%d'), "Prognozowany plon": "4.5 t/ha"})
+                            
+                            # Wyświetl tabelę faz wzrostu
+                            st.table(phase_data)
+                            
+                            # Dodaj rekomendacje
+                            st.markdown("### Rekomendacje")
+                            st.markdown(f"Optymalny okres zbiorów: **{maturity_date.strftime('%Y-%m-%d')} - {harvest_date.strftime('%Y-%m-%d')}**")
+                            
+                            if include_weather:
+                                st.markdown("### Prognoza pogody")
+                                st.markdown(f"Najbliższe 10 dni: **Umiarkowane temperatury, niskie opady**")
+                                st.markdown(f"Długoterminowa (30 dni): **Temperatury powyżej średniej, opady w normie**")
+                    
+                    except Exception as e:
+                        st.error(f"Błąd podczas generowania prognozy: {str(e)}")
+                        logger.error(f"Error in yield forecast: {traceback.format_exc()}")
+            else:
+                # Wyświetl instrukcje, gdy nie wykonano prognozy
+                st.markdown("## Prognoza plonów")
+                st.markdown("""
+                Wybierz parametry po lewej stronie i kliknij 'Uruchom prognozę', aby wygenerować prognozę plonów dla wybranego pola.
+                
+                Prognoza wykorzystuje:
+                - Dane satelitarne (NDVI, EVI)
+                - Dane pogodowe (temperatura, opady)
+                - Historyczne plony
+                - Dane rynkowe (opcjonalnie)
+                
+                Możesz wybrać prognozę końcową (plon przy zbiorach) lub prognozę w czasie (rozwój plonu).
+                """)
+                
+                # Wyświetl przykładowy obraz NDVI, jeśli dostępny
+                try:
+                    # Sprawdź, czy istnieją dane satelitarne dla wybranego pola
+                    satellite_images = db.query(SatelliteImage).filter(
+                        SatelliteImage.field_id == selected_field.id,
+                        SatelliteImage.image_type == "NDVI"
+                    ).order_by(SatelliteImage.acquisition_date.desc()).first()
+                    
+                    if satellite_images:
+                        st.markdown("### Ostatni obraz NDVI")
+                        st.markdown(f"Data: {satellite_images.acquisition_date}")
+                        
+                        # Tutaj możemy dodać wyświetlanie obrazu, jeśli mamy sposób na jego pobranie
+                except Exception as e:
+                    pass  # Ciche obsłużenie błędu, jeśli nie można pobrać obrazów
 
 # Automatyczne przełączanie między zakładkami
 if 'active_tab' in st.session_state:
