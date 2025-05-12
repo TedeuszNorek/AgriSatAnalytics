@@ -645,6 +645,117 @@ def create_correlation_figure(
     plt.tight_layout()
     return fig
 
+def plot_market_signals(
+    price_data: pd.DataFrame,
+    signal_data: pd.DataFrame,
+    commodity: str = None,
+    figsize: Tuple[int, int] = (12, 6)
+) -> Figure:
+    """
+    Create a visualization for market signals with price data.
+    
+    Args:
+        price_data: DataFrame with price data
+        signal_data: DataFrame with market signals
+        commodity: Commodity to filter signals for
+        figsize: Figure size as (width, height)
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot price data
+    ax.plot(price_data.index, price_data['Close'], 'b-', linewidth=2, label='Price')
+    
+    # Filter signals if commodity is provided
+    if commodity:
+        signal_data = signal_data[signal_data['commodity'] == commodity]
+    
+    # Plot buy signals
+    buy_signals = signal_data[signal_data['action'] == 'LONG']
+    if not buy_signals.empty:
+        ax.scatter(
+            buy_signals['signal_date'],
+            [price_data.loc[date]['Close'] if date in price_data.index else None 
+             for date in buy_signals['signal_date']],
+            color='green', marker='^', s=150, label='Buy Signal'
+        )
+    
+    # Plot sell signals
+    sell_signals = signal_data[signal_data['action'] == 'SHORT']
+    if not sell_signals.empty:
+        ax.scatter(
+            sell_signals['signal_date'],
+            [price_data.loc[date]['Close'] if date in price_data.index else None 
+             for date in sell_signals['signal_date']],
+            color='red', marker='v', s=150, label='Sell Signal'
+        )
+    
+    # Format x-axis as dates
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.xticks(rotation=45)
+    
+    # Add labels and title
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price')
+    ax.set_title(f'Market Signals for {commodity or "All Commodities"}')
+    
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add legend
+    ax.legend()
+    
+    plt.tight_layout()
+    return fig
+
+def plot_correlation_heatmap(
+    correlation_data: pd.DataFrame,
+    title: str = "Correlation Heatmap",
+    figsize: Tuple[int, int] = (10, 8)
+) -> Figure:
+    """
+    Create a correlation heatmap visualization.
+    
+    Args:
+        correlation_data: DataFrame with correlation values
+        title: Title for the heatmap
+        figsize: Figure size as (width, height)
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Create heatmap
+    im = ax.imshow(correlation_data.values, cmap='coolwarm', vmin=-1, vmax=1)
+    
+    # Add colorbar
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label('Correlation Coefficient')
+    
+    # Set ticks and labels
+    ax.set_xticks(np.arange(len(correlation_data.columns)))
+    ax.set_yticks(np.arange(len(correlation_data.index)))
+    ax.set_xticklabels(correlation_data.columns)
+    ax.set_yticklabels(correlation_data.index)
+    
+    # Rotate x tick labels for better readability
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    
+    # Add correlation values as text
+    for i in range(len(correlation_data.index)):
+        for j in range(len(correlation_data.columns)):
+            text = ax.text(j, i, f"{correlation_data.iloc[i, j]:.2f}",
+                           ha="center", va="center", color="black")
+    
+    # Set title
+    ax.set_title(title)
+    
+    plt.tight_layout()
+    return fig
+
 def fig_to_base64(fig: Figure) -> str:
     """
     Convert a matplotlib figure to a base64 encoded string.
