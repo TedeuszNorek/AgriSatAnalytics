@@ -2,69 +2,137 @@
 Configuration file for Agro Insight - Satellite data analytics for agriculture.
 """
 import os
-from pathlib import Path
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple, Optional, Any, Union
 
-# Application settings
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='app.log'
+)
+
+# Add console handler
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+console.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logging.getLogger('').addHandler(console)
+
+# Application metadata
 APP_NAME = "Agro Insight"
-APP_VERSION = "1.0.0"
-APP_DESCRIPTION = "Satellite data analytics for agricultural insights and market predictions"
+APP_VERSION = "0.1.0"
+APP_DESCRIPTION = "Satellite data analytics for agriculture"
+APP_AUTHOR = "Vortex Analytics"
 
-# API Rate limits (free tier)
-SENTINEL_HUB_REQUESTS_PER_MINUTE = 30
-SENTINEL_HUB_PROCESSING_UNITS_PER_MINUTE = 10
+# Paths configuration
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+CACHE_DIR = os.path.join(BASE_DIR, "cache")
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-# Directories
-ROOT_DIR = Path(__file__).parent.absolute()
-DATA_DIR = os.getenv("DATA_DIR", ROOT_DIR / "data")
-CACHE_DIR = os.getenv("CACHE_DIR", ROOT_DIR / "cache")
-LOG_DIR = os.getenv("LOG_DIR", ROOT_DIR)
+# Create directories if they don't exist
+for directory in [DATA_DIR, CACHE_DIR, MODELS_DIR]:
+    os.makedirs(directory, exist_ok=True)
 
-# Ensure directories exist
-Path(DATA_DIR).mkdir(exist_ok=True, parents=True)
-Path(CACHE_DIR).mkdir(exist_ok=True, parents=True)
-Path(DATA_DIR / "geotiff").mkdir(exist_ok=True, parents=True)
-Path(DATA_DIR / "metadata").mkdir(exist_ok=True, parents=True) 
-Path(DATA_DIR / "market").mkdir(exist_ok=True, parents=True)
+# Nested data directories
+SATELLITE_DATA_DIR = os.path.join(DATA_DIR, "satellite")
+PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
+REPORTS_DIR = os.path.join(DATA_DIR, "reports")
 
-# API credentials
-SENTINEL_HUB_CLIENT_ID = os.getenv("SENTINEL_HUB_CLIENT_ID", "")
-SENTINEL_HUB_CLIENT_SECRET = os.getenv("SENTINEL_HUB_CLIENT_SECRET", "")
+# Create nested directories
+for directory in [SATELLITE_DATA_DIR, PROCESSED_DATA_DIR, REPORTS_DIR]:
+    os.makedirs(directory, exist_ok=True)
 
 # Sentinel Hub configuration
-SENTINEL_HUB_BASE_URL = "https://services.sentinel-hub.com"
-SENTINEL_HUB_OAUTH_URL = f"{SENTINEL_HUB_BASE_URL}/oauth/token"
-SENTINEL_HUB_API_URL = f"{SENTINEL_HUB_BASE_URL}/api/v1"
+SENTINEL_HUB_CLIENT_ID = os.getenv("SENTINEL_HUB_CLIENT_ID")
+SENTINEL_HUB_CLIENT_SECRET = os.getenv("SENTINEL_HUB_CLIENT_SECRET")
 
-# Weather API configuration
-OPEN_METEO_API_URL = "https://archive-api.open-meteo.com/v1/archive"
+# Default study parameters
+DEFAULT_START_DATE = datetime.utcnow() - timedelta(days=365)  # 1 year ago
+DEFAULT_END_DATE = datetime.utcnow()
+DEFAULT_MAX_CLOUD_COVERAGE = 20.0  # percentage
 
-# Vegetation indices thresholds
-NDVI_GOOD_THRESHOLD = 0.7
-NDVI_MODERATE_THRESHOLD = 0.5
-NDVI_POOR_THRESHOLD = 0.3
+# Satellite data parameters
+SATELLITE_INDICES = {
+    "NDVI": "Normalized Difference Vegetation Index",
+    "EVI": "Enhanced Vegetation Index",
+    "NDWI": "Normalized Difference Water Index",
+    "NDMI": "Normalized Difference Moisture Index",
+    "NBR": "Normalized Burn Ratio"
+}
 
-DROUGHT_NDVI_CHANGE_THRESHOLD = -0.15
-DROUGHT_MIN_PERIODS = 2
+# Crop types
+CROP_TYPES = [
+    "Wheat",
+    "Corn",
+    "Soybean",
+    "Barley",
+    "Canola",
+    "Rice",
+    "Cotton",
+    "Sunflower",
+    "Other"
+]
 
-# Market signal thresholds
-MARKET_SIGNAL_CONFIDENCE_THRESHOLD = 0.7
-ANOMALY_ZSCORE_THRESHOLD = 2.0
+# Market data configuration
+COMMODITIES = {
+    "ZW=F": "Wheat Futures",
+    "ZC=F": "Corn Futures",
+    "ZS=F": "Soybean Futures",
+    "ZR=F": "Rice Futures",
+    "ZO=F": "Oats Futures",
+    "ZL=F": "Soybean Oil Futures"
+}
 
-# Default image resolution in meters
-DEFAULT_RESOLUTION = 10
+# Cache configuration
+CACHE_EXPIRATION = 86400  # 24 hours in seconds
 
-# Maximum cloud coverage percentage for Sentinel-2 scenes
-DEFAULT_MAX_CLOUD_COVERAGE = 20.0
+# Application settings
+SETTINGS = {
+    "debug_mode": os.getenv("DEBUG", "False").lower() in ["true", "1", "yes"],
+    "cache_enabled": True,
+    "max_threads": 4,
+    "request_timeout": 30,  # seconds
+    "rate_limits": {
+        "sentinel_hub": 10,  # requests per minute
+        "weather_api": 60,   # requests per minute
+        "market_data": 100   # requests per minute
+    }
+}
 
-# Logging configuration
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-LOG_FILE = os.path.join(LOG_DIR, "app.log")
-
-# Model settings
-MODEL_SAVE_DIR = os.path.join(DATA_DIR, "models")
-Path(MODEL_SAVE_DIR).mkdir(exist_ok=True, parents=True)
-
-# Report settings
-REPORT_SAVE_DIR = os.path.join(DATA_DIR, "reports")
-Path(REPORT_SAVE_DIR).mkdir(exist_ok=True, parents=True)
+# Function to get all configurations as a dictionary (for debugging)
+def get_config_dict() -> Dict[str, Any]:
+    """Return all configurations as a dictionary."""
+    return {
+        "app_info": {
+            "name": APP_NAME,
+            "version": APP_VERSION,
+            "description": APP_DESCRIPTION
+        },
+        "paths": {
+            "base_dir": BASE_DIR,
+            "data_dir": DATA_DIR,
+            "cache_dir": CACHE_DIR,
+            "models_dir": MODELS_DIR,
+            "satellite_data_dir": SATELLITE_DATA_DIR,
+            "processed_data_dir": PROCESSED_DATA_DIR,
+            "reports_dir": REPORTS_DIR
+        },
+        "sentinel_hub": {
+            "client_id_configured": bool(SENTINEL_HUB_CLIENT_ID),
+            "client_secret_configured": bool(SENTINEL_HUB_CLIENT_SECRET)
+        },
+        "study_params": {
+            "default_start_date": DEFAULT_START_DATE.isoformat(),
+            "default_end_date": DEFAULT_END_DATE.isoformat(),
+            "default_max_cloud_coverage": DEFAULT_MAX_CLOUD_COVERAGE
+        },
+        "satellite_indices": SATELLITE_INDICES,
+        "crop_types": CROP_TYPES,
+        "commodities": COMMODITIES,
+        "cache": {
+            "expiration": CACHE_EXPIRATION
+        },
+        "settings": SETTINGS
+    }

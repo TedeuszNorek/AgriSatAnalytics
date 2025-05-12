@@ -1,352 +1,541 @@
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Tuple, Any, Optional
+"""
+Module for processing satellite data and extracting agricultural metrics.
+"""
+import os
+import json
 import logging
 import datetime
-from pathlib import Path
-import json
-import rasterio
-from rasterio.mask import mask
-from shapely.geometry import shape, box, Polygon
-import geopandas as gpd
-from diskcache import Cache
+from typing import Dict, List, Tuple, Optional, Union, Any, Callable
+import math
 
-# Configure logger
+import numpy as np
+import pandas as pd
+from scipy import ndimage
+import matplotlib.pyplot as plt
+
+from config import (
+    PROCESSED_DATA_DIR,
+    SATELLITE_INDICES
+)
+
+# Set up logging
 logger = logging.getLogger(__name__)
 
-# Configure cache
-cache_dir = Path("./cache")
-cache_dir.mkdir(exist_ok=True)
-cache = Cache(str(cache_dir))
+# Mask values for various satellite data products
+MASK_VALUES = {
+    'SCL': {
+        'NO_DATA': 0,
+        'SATURATED_DEFECTIVE': 1,
+        'DARK_AREA_PIXELS': 2,
+        'CLOUD_SHADOWS': 3,
+        'VEGETATION': 4,
+        'BARE_SOIL': 5,
+        'WATER': 6,
+        'CLOUDS_LOW_PROBA': 7,
+        'CLOUDS_MED_PROBA': 8,
+        'CLOUDS_HIGH_PROBA': 9,
+        'CIRRUS': 10,
+        'SNOW_ICE': 11
+    }
+}
 
-def calculate_ndvi(red_band: np.ndarray, nir_band: np.ndarray) -> np.ndarray:
+# Valid ranges for various indices
+INDEX_RANGES = {
+    'NDVI': (-1.0, 1.0),
+    'EVI': (-1.0, 1.0),
+    'NDWI': (-1.0, 1.0),
+    'NDMI': (-1.0, 1.0),
+    'NBR': (-1.0, 1.0)
+}
+
+def calculate_ndvi(nir: np.ndarray, red: np.ndarray) -> np.ndarray:
     """
-    Calculate Normalized Difference Vegetation Index (NDVI).
+    Calculate the Normalized Difference Vegetation Index.
     
     NDVI = (NIR - Red) / (NIR + Red)
     
     Args:
-        red_band: Red band (B04) from Sentinel-2
-        nir_band: Near Infrared band (B08) from Sentinel-2
+        nir: Near-infrared band (B8 for Sentinel-2)
+        red: Red band (B4 for Sentinel-2)
         
     Returns:
-        NDVI array with values between -1 and 1
+        NDVI array with values between -1.0 and 1.0
     """
     # Avoid division by zero
-    denominator = nir_band + red_band
-    ndvi = np.where(
-        denominator > 0,
-        (nir_band - red_band) / denominator,
-        0
-    )
+    denominator = nir + red
+    valid_mask = denominator > 0
+    
+    # Initialize output array with NaN values
+    ndvi = np.full_like(nir, np.nan, dtype=np.float32)
+    
+    # Calculate NDVI only for valid pixels
+    ndvi[valid_mask] = (nir[valid_mask] - red[valid_mask]) / denominator[valid_mask]
+    
+    # Clip values to valid range
+    ndvi = np.clip(ndvi, -1.0, 1.0)
     
     return ndvi
 
-def calculate_evi(red_band: np.ndarray, nir_band: np.ndarray, blue_band: np.ndarray) -> np.ndarray:
+def calculate_evi(nir: np.ndarray, red: np.ndarray, blue: np.ndarray) -> np.ndarray:
     """
-    Calculate Enhanced Vegetation Index (EVI).
+    Calculate the Enhanced Vegetation Index.
     
-    EVI = 2.5 * ((NIR - Red) / (NIR + 6*Red - 7.5*Blue + 1))
+    EVI = G * ((NIR - Red) / (NIR + C1 * Red - C2 * Blue + L))
     
     Args:
-        red_band: Red band (B04) from Sentinel-2
-        nir_band: Near Infrared band (B08) from Sentinel-2
-        blue_band: Blue band (B02) from Sentinel-2
+        nir: Near-infrared band (B8 for Sentinel-2)
+        red: Red band (B4 for Sentinel-2)
+        blue: Blue band (B2 for Sentinel-2)
         
     Returns:
-        EVI array
+        EVI array with values between -1.0 and 1.0
     """
-    denominator = nir_band + (6 * red_band) - (7.5 * blue_band) + 1
+    # EVI constants
+    G = 2.5
+    C1 = 6.0
+    C2 = 7.5
+    L = 1.0
     
     # Avoid division by zero
-    evi = np.where(
-        denominator > 0,
-        2.5 * ((nir_band - red_band) / denominator),
-        0
-    )
+    denominator = nir + C1 * red - C2 * blue + L
+    valid_mask = denominator > 0
+    
+    # Initialize output array with NaN values
+    evi = np.full_like(nir, np.nan, dtype=np.float32)
+    
+    # Calculate EVI only for valid pixels
+    evi[valid_mask] = G * (nir[valid_mask] - red[valid_mask]) / denominator[valid_mask]
+    
+    # Clip values to valid range
+    evi = np.clip(evi, -1.0, 1.0)
     
     return evi
 
-def calculate_ndwi(green_band: np.ndarray, nir_band: np.ndarray) -> np.ndarray:
+def calculate_ndwi(nir: np.ndarray, swir: np.ndarray) -> np.ndarray:
     """
-    Calculate Normalized Difference Water Index (NDWI).
+    Calculate the Normalized Difference Water Index.
     
-    NDWI = (Green - NIR) / (Green + NIR)
+    NDWI = (NIR - SWIR) / (NIR + SWIR)
     
     Args:
-        green_band: Green band (B03) from Sentinel-2
-        nir_band: Near Infrared band (B08) from Sentinel-2
+        nir: Near-infrared band (B8 for Sentinel-2)
+        swir: Short-wave infrared band (B11 for Sentinel-2)
         
     Returns:
-        NDWI array with values between -1 and 1
+        NDWI array with values between -1.0 and 1.0
     """
     # Avoid division by zero
-    denominator = green_band + nir_band
-    ndwi = np.where(
-        denominator > 0,
-        (green_band - nir_band) / denominator,
-        0
-    )
+    denominator = nir + swir
+    valid_mask = denominator > 0
+    
+    # Initialize output array with NaN values
+    ndwi = np.full_like(nir, np.nan, dtype=np.float32)
+    
+    # Calculate NDWI only for valid pixels
+    ndwi[valid_mask] = (nir[valid_mask] - swir[valid_mask]) / denominator[valid_mask]
+    
+    # Clip values to valid range
+    ndwi = np.clip(ndwi, -1.0, 1.0)
     
     return ndwi
 
-def extract_bands_from_sentinel(sentinel_data: np.ndarray) -> Dict[str, np.ndarray]:
+def calculate_ndmi(nir: np.ndarray, swir1: np.ndarray) -> np.ndarray:
     """
-    Extract individual bands from Sentinel-2 data.
+    Calculate the Normalized Difference Moisture Index.
+    
+    NDMI = (NIR - SWIR1) / (NIR + SWIR1)
     
     Args:
-        sentinel_data: Multi-band Sentinel-2 image array
+        nir: Near-infrared band (B8 for Sentinel-2)
+        swir1: Short-wave infrared band (B11 for Sentinel-2)
         
     Returns:
-        Dictionary with individual bands
+        NDMI array with values between -1.0 and 1.0
     """
-    # Sentinel-2 bands in the order from fetch_sentinel_data:
-    # B02, B03, B04, B05, B06, B07, B08, B8A, B11, B12
+    # Avoid division by zero
+    denominator = nir + swir1
+    valid_mask = denominator > 0
     
-    bands = {
-        "blue": sentinel_data[:, :, 0],      # B02
-        "green": sentinel_data[:, :, 1],     # B03
-        "red": sentinel_data[:, :, 2],       # B04
-        "red_edge_1": sentinel_data[:, :, 3], # B05
-        "red_edge_2": sentinel_data[:, :, 4], # B06
-        "red_edge_3": sentinel_data[:, :, 5], # B07
-        "nir": sentinel_data[:, :, 6],       # B08
-        "nir_narrow": sentinel_data[:, :, 7], # B8A
-        "swir_1": sentinel_data[:, :, 8],    # B11
-        "swir_2": sentinel_data[:, :, 9],    # B12
-    }
+    # Initialize output array with NaN values
+    ndmi = np.full_like(nir, np.nan, dtype=np.float32)
     
-    return bands
+    # Calculate NDMI only for valid pixels
+    ndmi[valid_mask] = (nir[valid_mask] - swir1[valid_mask]) / denominator[valid_mask]
+    
+    # Clip values to valid range
+    ndmi = np.clip(ndmi, -1.0, 1.0)
+    
+    return ndmi
 
-def calculate_vegetation_indices(sentinel_data: np.ndarray) -> Dict[str, np.ndarray]:
+def calculate_nbr(nir: np.ndarray, swir2: np.ndarray) -> np.ndarray:
     """
-    Calculate vegetation indices from Sentinel-2 data.
+    Calculate the Normalized Burn Ratio.
+    
+    NBR = (NIR - SWIR2) / (NIR + SWIR2)
     
     Args:
-        sentinel_data: Multi-band Sentinel-2 image array
+        nir: Near-infrared band (B8 for Sentinel-2)
+        swir2: Short-wave infrared band (B12 for Sentinel-2)
         
     Returns:
-        Dictionary with vegetation indices
+        NBR array with values between -1.0 and 1.0
     """
-    bands = extract_bands_from_sentinel(sentinel_data)
+    # Avoid division by zero
+    denominator = nir + swir2
+    valid_mask = denominator > 0
     
-    # Calculate indices
-    indices = {
-        "ndvi": calculate_ndvi(bands["red"], bands["nir"]),
-        "evi": calculate_evi(bands["red"], bands["nir"], bands["blue"]),
-        "ndwi": calculate_ndwi(bands["green"], bands["nir"]),
-    }
+    # Initialize output array with NaN values
+    nbr = np.full_like(nir, np.nan, dtype=np.float32)
     
-    return indices
+    # Calculate NBR only for valid pixels
+    nbr[valid_mask] = (nir[valid_mask] - swir2[valid_mask]) / denominator[valid_mask]
+    
+    # Clip values to valid range
+    nbr = np.clip(nbr, -1.0, 1.0)
+    
+    return nbr
+
+def apply_cloud_mask(
+    image: np.ndarray, 
+    scl: np.ndarray,
+    valid_classes: List[int] = [4, 5, 6, 11]  # Vegetation, Bare Soil, Water, Snow/Ice
+) -> np.ndarray:
+    """
+    Apply cloud mask to an image using the Scene Classification Layer (SCL).
+    
+    Args:
+        image: Image array to mask
+        scl: Scene Classification Layer array
+        valid_classes: List of valid SCL classes to keep
+        
+    Returns:
+        Masked array with invalid pixels set to NaN
+    """
+    # Create a mask where True means the pixel is valid
+    valid_mask = np.isin(scl, valid_classes)
+    
+    # Make a copy of the input image
+    masked_image = image.copy()
+    
+    # Set invalid pixels to NaN
+    masked_image[~valid_mask] = np.nan
+    
+    logger.info(f"Applied cloud mask: {np.sum(~valid_mask) / valid_mask.size:.2%} of pixels masked")
+    return masked_image
 
 def calculate_zonal_statistics(
-    index_array: np.ndarray, 
-    geometry: Polygon,
-    transform=None,
-    nodata=None
+    image: np.ndarray, 
+    mask: np.ndarray = None
 ) -> Dict[str, float]:
     """
-    Calculate zonal statistics for a given index within a polygon.
+    Calculate zonal statistics for an image, optionally within a mask.
     
     Args:
-        index_array: Array containing index values
-        geometry: Shapely polygon defining the zone
-        transform: Affine transform for the array
-        nodata: Value to treat as nodata
+        image: Image array
+        mask: Optional binary mask array (1 for valid pixels, 0 for invalid)
         
     Returns:
-        Dictionary with statistics
+        Dictionary with statistics (min, max, mean, median, std)
     """
-    # Convert polygon to GeoJSON format
-    geoms = [geometry.__geo_interface__]
-    
-    # Create a mask for the polygon
-    if transform is not None:
-        with rasterio.io.MemoryFile() as memfile:
-            with memfile.open(
-                driver='GTiff',
-                height=index_array.shape[0],
-                width=index_array.shape[1],
-                count=1,
-                dtype=index_array.dtype,
-                transform=transform,
-                nodata=nodata
-            ) as dataset:
-                dataset.write(index_array, 1)
-                masked_array, mask_transform = mask(dataset, geoms, crop=True, nodata=nodata)
+    # Apply mask if provided
+    if mask is not None:
+        valid_pixels = image[mask == 1]
     else:
-        # For testing/simple cases without transform
-        masked_array = index_array
+        valid_pixels = image[~np.isnan(image)]
     
-    # Flatten and remove nodata values
-    valid_data = masked_array.flatten()
-    if nodata is not None:
-        valid_data = valid_data[valid_data != nodata]
-    
-    # Calculate statistics
-    stats = {
-        "min": float(np.nanmin(valid_data)) if len(valid_data) > 0 else None,
-        "max": float(np.nanmax(valid_data)) if len(valid_data) > 0 else None,
-        "mean": float(np.nanmean(valid_data)) if len(valid_data) > 0 else None,
-        "median": float(np.nanmedian(valid_data)) if len(valid_data) > 0 else None,
-        "std": float(np.nanstd(valid_data)) if len(valid_data) > 0 else None,
-        "count": int(np.count_nonzero(~np.isnan(valid_data)))
-    }
+    # Calculate statistics only if there are valid pixels
+    if len(valid_pixels) > 0:
+        stats = {
+            "min": float(np.nanmin(valid_pixels)),
+            "max": float(np.nanmax(valid_pixels)),
+            "mean": float(np.nanmean(valid_pixels)),
+            "median": float(np.nanmedian(valid_pixels)),
+            "std": float(np.nanstd(valid_pixels)),
+            "count": int(len(valid_pixels)),
+            "percent_valid": float(len(valid_pixels) / image.size)
+        }
+    else:
+        stats = {
+            "min": None,
+            "max": None,
+            "mean": None,
+            "median": None,
+            "std": None,
+            "count": 0,
+            "percent_valid": 0.0
+        }
     
     return stats
 
-def detect_anomalies(
-    time_series: List[float], 
-    threshold: float = 2.0
-) -> List[int]:
+def extract_time_series(
+    images: List[np.ndarray],
+    dates: List[datetime.datetime],
+    mask: np.ndarray = None,
+    stat: str = "mean"
+) -> Dict[str, float]:
     """
-    Detect anomalies in a time series using z-score.
+    Extract time series from a list of images.
     
     Args:
-        time_series: List of values
-        threshold: Z-score threshold for anomaly detection
+        images: List of image arrays
+        dates: List of dates corresponding to the images
+        mask: Optional binary mask array (1 for valid pixels, 0 for invalid)
+        stat: Statistic to extract ('mean', 'median', 'min', 'max')
         
     Returns:
-        List of indices where anomalies were detected
+        Dictionary mapping date strings to values
     """
-    # Convert to numpy array
-    array = np.array(time_series)
+    stat_functions = {
+        "mean": np.nanmean,
+        "median": np.nanmedian,
+        "min": np.nanmin,
+        "max": np.nanmax
+    }
     
-    # Calculate z-scores
-    mean = np.mean(array)
-    std = np.std(array)
+    if stat not in stat_functions:
+        raise ValueError(f"Invalid statistic: {stat}. Must be one of {list(stat_functions.keys())}")
     
-    if std == 0:
-        return []
+    # Calculate the requested statistic for each image
+    time_series = {}
+    for i, (image, date) in enumerate(zip(images, dates)):
+        if mask is not None:
+            valid_pixels = image[mask == 1]
+        else:
+            valid_pixels = image[~np.isnan(image)]
+        
+        if len(valid_pixels) > 0:
+            value = float(stat_functions[stat](valid_pixels))
+        else:
+            value = None
+        
+        # Use ISO format date as key
+        time_series[date.isoformat()] = value
     
-    z_scores = (array - mean) / std
+    return time_series
+
+def detect_anomalies(
+    time_series: Dict[str, float],
+    method: str = "zscore",
+    threshold: float = 2.0
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Detect anomalies in a time series.
     
-    # Find anomalies
-    anomalies = np.where(np.abs(z_scores) > threshold)[0].tolist()
+    Args:
+        time_series: Dictionary mapping date strings to values
+        method: Method for anomaly detection ('zscore', 'iqr', 'rolling')
+        threshold: Threshold for detecting anomalies
+        
+    Returns:
+        Dictionary with detected anomalies and their scores
+    """
+    # Convert time series to pandas Series
+    dates = list(time_series.keys())
+    values = list(time_series.values())
+    
+    # Remove NaN values
+    valid_indices = [i for i, v in enumerate(values) if v is not None]
+    valid_dates = [dates[i] for i in valid_indices]
+    valid_values = [values[i] for i in valid_indices]
+    
+    if len(valid_values) < 3:
+        logger.warning("Not enough valid data points for anomaly detection")
+        return {}
+    
+    series = pd.Series(valid_values, index=pd.to_datetime(valid_dates))
+    
+    # Detect anomalies using the specified method
+    anomalies = {}
+    
+    if method == "zscore":
+        # Z-score method
+        mean = np.mean(valid_values)
+        std = np.std(valid_values)
+        
+        if std == 0:
+            logger.warning("Standard deviation is zero, cannot calculate Z-scores")
+            return {}
+        
+        z_scores = [(v - mean) / std for v in valid_values]
+        
+        for i, (date, value, z) in enumerate(zip(valid_dates, valid_values, z_scores)):
+            if abs(z) > threshold:
+                anomalies[date] = {
+                    "value": value,
+                    "score": z,
+                    "type": "high" if z > 0 else "low"
+                }
+    
+    elif method == "iqr":
+        # Interquartile Range method
+        q1 = np.percentile(valid_values, 25)
+        q3 = np.percentile(valid_values, 75)
+        iqr = q3 - q1
+        
+        lower_bound = q1 - threshold * iqr
+        upper_bound = q3 + threshold * iqr
+        
+        for i, (date, value) in enumerate(zip(valid_dates, valid_values)):
+            if value < lower_bound:
+                anomalies[date] = {
+                    "value": value,
+                    "score": (lower_bound - value) / iqr,
+                    "type": "low"
+                }
+            elif value > upper_bound:
+                anomalies[date] = {
+                    "value": value,
+                    "score": (value - upper_bound) / iqr,
+                    "type": "high"
+                }
+    
+    elif method == "rolling":
+        # Rolling window method
+        window_size = min(5, len(valid_values) // 2)
+        if window_size < 2:
+            window_size = 2
+        
+        rolling_mean = series.rolling(window=window_size, center=True).mean()
+        rolling_std = series.rolling(window=window_size, center=True).std()
+        
+        for date, value in zip(valid_dates, valid_values):
+            idx = pd.to_datetime(date)
+            if idx in rolling_mean.index and not np.isnan(rolling_mean[idx]) and not np.isnan(rolling_std[idx]):
+                z = (value - rolling_mean[idx]) / rolling_std[idx]
+                if abs(z) > threshold:
+                    anomalies[date] = {
+                        "value": value,
+                        "score": z,
+                        "type": "high" if z > 0 else "low"
+                    }
+    
+    else:
+        raise ValueError(f"Invalid anomaly detection method: {method}")
     
     return anomalies
 
-def detect_drought(ndvi_time_series: List[float], dates: List[str]) -> List[Dict[str, Any]]:
+def save_processed_data(
+    field_name: str,
+    data_type: str,
+    data: Any,
+    metadata: Dict = None
+) -> str:
     """
-    Detect drought conditions based on NDVI time series.
-    
-    Drought condition: NDVI decrease >= 0.15 for two or more consecutive periods.
+    Save processed data to file.
     
     Args:
-        ndvi_time_series: List of NDVI values
-        dates: List of dates corresponding to NDVI values
+        field_name: Name of the field
+        data_type: Type of data ('ndvi', 'evi', 'time_series', etc.)
+        data: Data to save
+        metadata: Optional metadata dictionary
         
     Returns:
-        List of drought events with start date, end date, and severity
+        Path to the saved file
     """
-    drought_events = []
+    # Create field directory if it doesn't exist
+    field_dir = os.path.join(PROCESSED_DATA_DIR, field_name)
+    os.makedirs(field_dir, exist_ok=True)
     
-    # Calculate NDVI differences
-    ndvi_diff = np.diff(ndvi_time_series)
-    
-    # Find potential drought starts (NDVI decrease >= 0.15)
-    drought_starts = np.where(ndvi_diff <= -0.15)[0]
-    
-    if len(drought_starts) == 0:
-        return []
-    
-    # Check for consecutive periods
-    current_drought = None
-    
-    for i in range(len(drought_starts)):
-        idx = drought_starts[i]
+    # Determine file format based on data type
+    if data_type.lower() in ['ndvi', 'evi', 'ndwi', 'ndmi', 'nbr']:
+        # For raster data, save as NumPy array
+        filename = os.path.join(field_dir, f"{data_type.lower()}.npy")
+        np.save(filename, data)
+    elif data_type.lower() in ['time_series', 'anomalies', 'statistics', 'metadata']:
+        # For time series and metadata, save as JSON
+        filename = os.path.join(field_dir, f"{data_type.lower()}.json")
         
-        # Check if this is a continuation of the current drought
-        if current_drought and idx == current_drought["end_idx"] + 1:
-            # Extend the current drought
-            current_drought["end_idx"] = idx + 1
-            current_drought["end_date"] = dates[idx + 1]
-            current_drought["duration"] += 1
-            current_drought["severity"] = max(
-                current_drought["severity"],
-                abs(ndvi_time_series[idx + 1] - ndvi_time_series[idx])
-            )
+        # Handle NumPy types in the data
+        def convert_np(obj):
+            if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32,
+                                np.int64, np.uint8, np.uint16, np.uint32, np.uint64)):
+                return int(obj)
+            elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, (np.ndarray,)):
+                return obj.tolist()
+            elif isinstance(obj, (datetime.datetime, datetime.date)):
+                return obj.isoformat()
+            return obj
+        
+        with open(filename, 'w') as f:
+            json.dump(data, f, default=convert_np, indent=2)
+    else:
+        # For unknown data types, save as pickle
+        filename = os.path.join(field_dir, f"{data_type.lower()}.pkl")
+        import pickle
+        with open(filename, 'wb') as f:
+            pickle.dump(data, f)
+    
+    logger.info(f"Saved {data_type} data for field {field_name} to {filename}")
+    
+    # Save metadata if provided
+    if metadata:
+        metadata_filename = os.path.join(field_dir, f"{data_type.lower()}_metadata.json")
+        with open(metadata_filename, 'w') as f:
+            json.dump(metadata, f, default=convert_np, indent=2)
+        logger.info(f"Saved {data_type} metadata for field {field_name} to {metadata_filename}")
+    
+    return filename
+
+def load_processed_data(field_name: str, data_type: str) -> Tuple[Any, Optional[Dict]]:
+    """
+    Load processed data from file.
+    
+    Args:
+        field_name: Name of the field
+        data_type: Type of data ('ndvi', 'evi', 'time_series', etc.)
+        
+    Returns:
+        Tuple of (data, metadata)
+    """
+    # Create paths for data and metadata files
+    field_dir = os.path.join(PROCESSED_DATA_DIR, field_name)
+    
+    # Check if field directory exists
+    if not os.path.exists(field_dir):
+        logger.warning(f"Field directory does not exist: {field_dir}")
+        return None, None
+    
+    # Determine file format based on data type
+    data = None
+    metadata = None
+    
+    if data_type.lower() in ['ndvi', 'evi', 'ndwi', 'ndmi', 'nbr']:
+        # For raster data, load from NumPy array
+        filename = os.path.join(field_dir, f"{data_type.lower()}.npy")
+        if os.path.exists(filename):
+            data = np.load(filename)
+            logger.info(f"Loaded {data_type} data for field {field_name} from {filename}")
         else:
-            # If we have a previous drought event with duration >= 2, save it
-            if current_drought and current_drought["duration"] >= 2:
-                drought_events.append(current_drought)
-            
-            # Start a new drought event
-            current_drought = {
-                "start_idx": idx,
-                "start_date": dates[idx],
-                "end_idx": idx + 1,
-                "end_date": dates[idx + 1],
-                "duration": 1,
-                "severity": abs(ndvi_time_series[idx + 1] - ndvi_time_series[idx])
-            }
+            logger.warning(f"File does not exist: {filename}")
     
-    # Don't forget to add the last drought if it meets the criteria
-    if current_drought and current_drought["duration"] >= 2:
-        drought_events.append(current_drought)
+    elif data_type.lower() in ['time_series', 'anomalies', 'statistics', 'metadata']:
+        # For time series and metadata, load from JSON
+        filename = os.path.join(field_dir, f"{data_type.lower()}.json")
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            logger.info(f"Loaded {data_type} data for field {field_name} from {filename}")
+        else:
+            logger.warning(f"File does not exist: {filename}")
     
-    return drought_events
-
-def calculate_rolling_variance(
-    time_series: List[float], 
-    window_size: int = 3
-) -> List[float]:
-    """
-    Calculate rolling variance for a time series.
+    else:
+        # For unknown data types, load from pickle
+        filename = os.path.join(field_dir, f"{data_type.lower()}.pkl")
+        if os.path.exists(filename):
+            import pickle
+            with open(filename, 'rb') as f:
+                data = pickle.load(f)
+            logger.info(f"Loaded {data_type} data for field {field_name} from {filename}")
+        else:
+            logger.warning(f"File does not exist: {filename}")
     
-    Args:
-        time_series: List of values
-        window_size: Size of the rolling window
-        
-    Returns:
-        List of rolling variance values
-    """
-    # Convert to pandas Series for easy rolling calculations
-    series = pd.Series(time_series)
+    # Try to load metadata if it exists
+    metadata_filename = os.path.join(field_dir, f"{data_type.lower()}_metadata.json")
+    if os.path.exists(metadata_filename):
+        with open(metadata_filename, 'r') as f:
+            metadata = json.load(f)
+        logger.info(f"Loaded {data_type} metadata for field {field_name} from {metadata_filename}")
     
-    # Calculate rolling variance
-    rolling_var = series.rolling(window=window_size).var().tolist()
-    
-    # Fill NaN values at the beginning with the first valid variance
-    first_valid = next((x for x in rolling_var if not pd.isna(x)), 0)
-    rolling_var = [first_valid if pd.isna(x) else x for x in rolling_var]
-    
-    return rolling_var
-
-def perform_pca_clustering(
-    indices_matrix: np.ndarray,
-    n_clusters: int = 3
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Perform PCA and K-means clustering on multi-season indices.
-    
-    Args:
-        indices_matrix: Matrix with dimensions (pixels, features)
-        n_clusters: Number of clusters for K-means
-        
-    Returns:
-        Tuple of (pca_components, explained_variance, cluster_labels)
-    """
-    from sklearn.decomposition import PCA
-    from sklearn.cluster import KMeans
-    
-    # Remove any rows with NaN values
-    valid_indices = ~np.isnan(indices_matrix).any(axis=1)
-    valid_data = indices_matrix[valid_indices]
-    
-    if len(valid_data) == 0:
-        return None, None, None
-    
-    # Perform PCA
-    pca = PCA()
-    pca_result = pca.fit_transform(valid_data)
-    
-    # Perform K-means clustering
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    cluster_labels = kmeans.fit_predict(pca_result[:, :2])  # Use first two components
-    
-    # Create full cluster map (including NaN pixels)
-    full_cluster_map = np.full(len(indices_matrix), -1)  # -1 for invalid pixels
-    full_cluster_map[valid_indices] = cluster_labels
-    
-    return pca_result, pca.explained_variance_ratio_, full_cluster_map
+    return data, metadata
