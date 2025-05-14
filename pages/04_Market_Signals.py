@@ -39,72 +39,62 @@ if "market_signals_results" not in st.session_state:
 
 # Helper function to load available fields
 def get_sample_data():
-    """Tworzy przykładowe dane do demonstracji"""
+    """Pobiera rzeczywiste dane z plików"""
+    import json
+    from pathlib import Path
     
-    # Przykładowe pola
-    sample_fields = [
-        "Pole pszenicy - Mazowsze",
-        "Pole kukurydzy - Wielkopolska",
-        "Pole rzepaku - Pomorze"
-    ]
+    # Sprawdźmy, czy są dostępne dane z analizy pól
+    data_dir = Path("data")
+    if not data_dir.exists():
+        st.warning("Brak danych z analizy pól. Proszę najpierw przeprowadzić analizę pola w zakładce Field Manager.")
+        return [], {}
     
-    # Przykładowe dane NDVI dla symulacji
-    import numpy as np
-    import pandas as pd
-    from datetime import datetime, timedelta
-    
-    # Wygeneruj daty dla ostatnich 90 dni
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
-    dates = pd.date_range(start=start_date, end=end_date, freq='5D')
-    
-    # Wygeneruj dane NDVI dla każdego pola
+    # Pobierz nazwy pól z plików JSON z danymi NDVI
+    field_names = set()
     ndvi_data = {}
-    for field in sample_fields:
-        # Ustaw wartość bazową NDVI w zależności od typu uprawy
-        if "pszenicy" in field:
-            base_ndvi = 0.65
-        elif "kukurydzy" in field: 
-            base_ndvi = 0.72
-        else:
-            base_ndvi = 0.68
-        
-        # Dodaj trend sezonowy i losowe wahania
-        field_data = {}
-        for i, date in enumerate(dates):
-            # Symulacja trendu wzrostu roślin - krzywa dzwonowa
-            season_effect = -0.2 * ((i - len(dates)/2) / (len(dates)/3))**2
-            random_effect = np.random.normal(0, 0.03)  # Losowe wahania
-            ndvi_value = min(max(base_ndvi + season_effect + random_effect, 0), 1)  # Ogranicz do zakresu [0, 1]
-            
-            # Zapisz dane z datą jako string w formacie ISO
-            field_data[date.strftime('%Y-%m-%d')] = ndvi_value
-        
-        ndvi_data[field] = field_data
     
-    return sample_fields, ndvi_data
+    # Szukaj plików z danymi NDVI
+    for file_path in data_dir.glob("*_ndvi.json"):
+        field_name = file_path.stem.split('_')[0]
+        field_names.add(field_name)
+        
+        # Wczytaj dane NDVI z pliku
+        try:
+            with open(file_path, 'r') as f:
+                field_ndvi_data = json.load(f)
+                ndvi_data[field_name] = field_ndvi_data
+        except Exception as e:
+            logger.error(f"Błąd wczytywania danych NDVI dla pola {field_name}: {str(e)}")
+    
+    if not field_names:
+        st.warning("Nie znaleziono danych NDVI. Proszę najpierw przeprowadzić analizę pola z indeksem NDVI.")
+    
+    return list(field_names), ndvi_data
 
 def load_available_fields():
     """Load available fields from processed data directory"""
-    data_dir = Path("./data/geotiff")
-    if not data_dir.exists():
-        # Jeśli katalog nie istnieje, użyj przykładowych danych
-        sample_fields, _ = get_sample_data()
-        return sample_fields
-    
-    # Get unique field names from filenames
+    # Próbujemy znaleźć pola zarówno w katalogu geotiff, jak i w katalogu z danymi NDVI
     field_names = set()
-    for file in data_dir.glob("*.tif"):
-        # Extract field name from filename (format: fieldname_index_sceneid.tif)
-        parts = file.stem.split('_')
-        if len(parts) >= 2:
-            field_name = parts[0]
+    
+    # Sprawdź katalog z danymi geotiff
+    data_dir = Path("./data/geotiff")
+    if data_dir.exists():
+        for file in data_dir.glob("*.tif"):
+            # Extract field name from filename (format: fieldname_index_sceneid.tif)
+            parts = file.stem.split('_')
+            if len(parts) >= 2:
+                field_name = parts[0]
+                field_names.add(field_name)
+    
+    # Sprawdź katalog z danymi NDVI
+    ndvi_dir = Path("./data")
+    if ndvi_dir.exists():
+        for file in ndvi_dir.glob("*_ndvi.json"):
+            field_name = file.stem.split('_')[0]
             field_names.add(field_name)
     
     if not field_names:
-        # Jeśli nie znaleziono plików, użyj przykładowych danych
-        sample_fields, _ = get_sample_data()
-        return sample_fields
+        st.warning("Nie znaleziono danych dla pól. Proszę najpierw przeprowadzić analizę pola w zakładce Field Manager.")
     
     return list(field_names)
 
@@ -251,55 +241,10 @@ if selected_field:
                     except Exception as e:
                         logger.error(f"Błąd podczas pobierania danych cenowych: {str(e)}")
                         st.error(f"Nie udało się pobrać danych cenowych: {str(e)}")
+                        st.info("Aby kontynuować analizę potrzebne są rzeczywiste dane cenowe. Spróbuj zmienić okres analizy lub sprawdź połączenie internetowe.")
                         
-                        # Generujemy przykładowe dane cenowe
-                        import pandas as pd
-                        import numpy as np
-                        from datetime import datetime, timedelta
-                        
-                        # Wygeneruj daty dla wybranego okresu
-                        end_date = datetime.now()
-                        if period == "6mo":
-                            start_date = end_date - timedelta(days=180)
-                        elif period == "2y":
-                            start_date = end_date - timedelta(days=730)
-                        else:  # 1y domyślnie
-                            start_date = end_date - timedelta(days=365)
-                            
-                        dates = pd.date_range(start=start_date, end=end_date)
-                        
-                        # Stwórz słownik dla danych cenowych
-                        data = {'Date': dates}
-                        
-                        # Dodaj kolumnę dla każdego symbolu
-                        for symbol in commodity_symbols:
-                            # Ustaw cenę bazową w zależności od typu towaru
-                            if "ZW" in symbol:  # pszenica
-                                base_price = 650.0
-                            elif "ZC" in symbol:  # kukurydza
-                                base_price = 450.0
-                            elif "ZS" in symbol:  # soja
-                                base_price = 1250.0
-                            elif "ZO" in symbol:  # owies
-                                base_price = 350.0
-                            else:
-                                base_price = 500.0
-                            
-                            # Wygeneruj dane cenowe z trendem i losowymi wahaniami
-                            trend = np.linspace(-0.1, 0.1, len(dates))  # Niewielki trend
-                            seasonality = 0.05 * np.sin(np.linspace(0, 4*np.pi, len(dates)))  # Sezonowość
-                            noise = np.random.normal(0, 0.02, len(dates))  # Szum
-                            
-                            # Połącz elementy i dodaj do bazowej ceny
-                            price_changes = trend + seasonality + noise
-                            prices = base_price * (1 + np.cumsum(price_changes))
-                            
-                            # Dodaj do słownika danych
-                            data[symbol] = prices
-                        
-                        # Utwórz DataFrame z wygenerowanych danych
-                        price_data = pd.DataFrame(data)
-                        price_data.set_index('Date', inplace=True)
+                        # Zakończ analizę, jeśli nie udało się pobrać danych
+                        return
                     
                     # Jeśli mamy dane cenowe, kontynuuj analizę
                     if not price_data.empty:
