@@ -671,7 +671,8 @@ class NarrativeGenerator(LLMAgent):
         super().__init__("NarrativeGenerator", "generowanie narracji i podsumowań w języku naturalnym")
     
     def generate_narrative(self, field_name: str, satellite_analysis: Dict[str, Any], 
-                         yield_forecast: Dict[str, Any], market_analysis: Dict[str, Any]) -> Dict[str, Any]:
+                         yield_forecast: Dict[str, Any], market_analysis: Dict[str, Any],
+                         weather_energy_analysis: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Generuj narrację na podstawie analiz innych agentów.
         
@@ -865,6 +866,126 @@ class NarrativeGenerator(LLMAgent):
         return narrative_result
 
 
+class WeatherEnergyAgent(LLMAgent):
+    """Agent LLM specjalizujący się w analizie pogody i cen energii."""
+    
+    def __init__(self):
+        """Inicjalizacja agenta analizy pogody i energii."""
+        super().__init__("WeatherEnergyAnalyst", "analiza wpływu pogody na koszty energii i operacje rolnicze")
+    
+    def analyze_weather_energy_impact(self, field_name: str, lat: float, lon: float, 
+                                    ndvi_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analizuj wpływ warunków pogodowych i cen energii na operacje rolnicze.
+        
+        Args:
+            field_name: Nazwa pola
+            lat: Szerokość geograficzna
+            lon: Długość geograficzna
+            ndvi_analysis: Wyniki analizy NDVI
+            
+        Returns:
+            Analiza wpływu pogody i energii
+        """
+        reasoning_steps = [
+            {"step": "Inicjalizacja analizy pogodowo-energetycznej", 
+             "result": f"Rozpoczęto analizę dla pola {field_name} na pozycji ({lat}, {lon})"}
+        ]
+        
+        try:
+            # Importuj analyzer tylko gdy potrzebny
+            from utils.weather_gas_analysis import get_weather_gas_analyzer
+            analyzer = get_weather_gas_analyzer()
+            
+            # Pobierz dane pogodowe i cenowe
+            weather_data = analyzer.get_weather_data(lat, lon, 30)
+            gas_data = analyzer.get_gas_price_data("1mo")
+            
+            reasoning_steps.append({"step": "Pobranie danych pogodowych i cenowych", 
+                                 "result": f"Pobrano dane pogodowe i {len(gas_data)} instrumentów energetycznych"})
+            
+            # Oblicz korelacje
+            correlations = analyzer.calculate_weather_gas_correlation(weather_data, gas_data)
+            
+            reasoning_steps.append({"step": "Analiza korelacji pogoda-ceny", 
+                                 "result": f"Przeanalizowano korelacje dla {len(correlations.get('correlations', {}))} instrumentów"})
+            
+            # Analiza wpływu na rolnictwo
+            agricultural_impact = analyzer.analyze_agricultural_impact(weather_data, gas_data)
+            
+            reasoning_steps.append({"step": "Ocena wpływu na rolnictwo", 
+                                 "result": "Obliczono koszty energii, nawadniania i paliwa"})
+            
+            # Integracja z analizą NDVI
+            ndvi_temp_correlation = 0
+            if ndvi_analysis and ndvi_analysis.get("status") == "success":
+                current_ndvi = ndvi_analysis.get("current_ndvi", 0.5)
+                avg_temp = weather_data.get("summary", {}).get("avg_temperature", 20)
+                
+                # Prosta korelacja NDVI-temperatura (dla demonstracji)
+                if avg_temp > 25 and current_ndvi < 0.6:
+                    ndvi_temp_correlation = -0.7  # Wysokie temperatury, niskie NDVI
+                    reasoning_steps.append({"step": "Korelacja NDVI-temperatura", 
+                                         "result": "Zidentyfikowano negatywną korelację: wysokie temp., niskie NDVI"})
+                elif avg_temp < 15 and current_ndvi > 0.7:
+                    ndvi_temp_correlation = 0.6   # Niskie temperatury, wysokie NDVI
+                    reasoning_steps.append({"step": "Korelacja NDVI-temperatura", 
+                                         "result": "Zidentyfikowano pozytywną korelację: niskie temp., wysokie NDVI"})
+            
+            # Generuj zintegrowane wnioski
+            integrated_insights = []
+            
+            # Wnioski temperaturowe
+            avg_temp = weather_data.get("summary", {}).get("avg_temperature", 20)
+            if avg_temp < 5:
+                integrated_insights.append("Niskie temperatury znacząco zwiększą koszty ogrzewania i mogą wpłynąć na rozwój upraw.")
+            elif avg_temp > 30:
+                integrated_insights.append("Wysokie temperatury zwiększą zapotrzebowanie na chłodzenie i nawadnianie.")
+            
+            # Wnioski energetyczne
+            gas_summary = gas_data.get('NG=F', {})
+            if gas_summary and gas_summary.get('current_price', 0) > 4.0:
+                integrated_insights.append("Wysokie ceny gazu ziemnego sugerują rozważenie alternatywnych źródeł energii.")
+            
+            # Zapisz kroki reasoningu
+            self.reasoning_chain.extend(reasoning_steps)
+            
+            # Wyniki analizy
+            analysis_result = {
+                "agent": self.agent_name,
+                "field": field_name,
+                "location": {"lat": lat, "lon": lon},
+                "status": "success",
+                "weather_summary": weather_data.get("summary", {}),
+                "energy_costs": agricultural_impact.get("heating_cooling_costs", {}),
+                "irrigation_costs": agricultural_impact.get("irrigation_costs", {}),
+                "fuel_costs": agricultural_impact.get("equipment_fuel_costs", {}),
+                "correlations_summary": correlations.get("strongest_correlations", {}),
+                "ndvi_weather_correlation": ndvi_temp_correlation,
+                "integrated_insights": integrated_insights,
+                "recommendations": agricultural_impact.get("cost_optimization_recommendations", []),
+                "reasoning": reasoning_steps,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"Błąd analizy pogodowo-energetycznej: {str(e)}")
+            reasoning_steps.append({"step": "Błąd analizy", 
+                                 "result": f"Wystąpił błąd: {str(e)}"})
+            self.reasoning_chain.extend(reasoning_steps)
+            
+            return {
+                "agent": self.agent_name,
+                "field": field_name,
+                "status": "error",
+                "message": f"Błąd analizy pogodowo-energetycznej: {str(e)}",
+                "reasoning": reasoning_steps,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+
+
 class AgentCoordinator:
     """Koordynator agentów LLM, zarządzający przepływem informacji między nimi."""
     
@@ -875,13 +996,15 @@ class AgentCoordinator:
         self.yield_agent = YieldForecastAgent()
         self.market_agent = MarketAnalysisAgent()
         self.narrative_agent = NarrativeGenerator()
+        self.weather_energy_agent = WeatherEnergyAgent()
         
         # Lista wszystkich agentów
         self.agents = [
             self.satellite_agent,
             self.yield_agent,
             self.market_agent,
-            self.narrative_agent
+            self.narrative_agent,
+            self.weather_energy_agent
         ]
         
         # Katalog do przechowywania wyników
@@ -929,12 +1052,26 @@ class AgentCoordinator:
             logger.warning(f"Nie można przeprowadzić analizy rynku dla pola {field_name} - brak poprawnej analizy satelitarnej")
             results["market_analysis"] = {"status": "error", "message": "Brak poprawnej analizy satelitarnej"}
         
-        # 4. Generowanie narracji na podstawie wszystkich analiz
+        # 4. Analiza pogody i energii (nowy agent)
+        if satellite_analysis.get("status") == "success":
+            # Pobierz współrzędne z informacji o polu lub użyj domyślnych
+            lat = field_info.get("center_lat", 52.2297)  # Domyślnie Warszawa
+            lon = field_info.get("center_lon", 21.0122)
+            
+            weather_energy_analysis = self.weather_energy_agent.analyze_weather_energy_impact(
+                field_name, lat, lon, satellite_analysis)
+            results["weather_energy_analysis"] = weather_energy_analysis
+        else:
+            logger.warning(f"Nie można przeprowadzić analizy pogodowo-energetycznej dla pola {field_name} - brak poprawnej analizy satelitarnej")
+            results["weather_energy_analysis"] = {"status": "error", "message": "Brak poprawnej analizy satelitarnej"}
+        
+        # 5. Generowanie narracji na podstawie wszystkich analiz (włącznie z pogodą i energią)
         if satellite_analysis.get("status") == "success":
             narrative = self.narrative_agent.generate_narrative(field_name, 
                                                               satellite_analysis,
                                                               results.get("yield_forecast", {}),
-                                                              results.get("market_analysis", {}))
+                                                              results.get("market_analysis", {}),
+                                                              results.get("weather_energy_analysis", {}))
             results["narrative"] = narrative
         else:
             logger.warning(f"Nie można wygenerować narracji dla pola {field_name} - brak poprawnej analizy satelitarnej")
