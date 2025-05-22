@@ -274,16 +274,18 @@ def display_latest_predictions():
         # Dodaj kolumnę z wartością numeryczną dla sygnału
         signal_df["Signal Value"] = signal_df["Action"].map({"LONG": 1, "NEUTRAL": 0, "SHORT": -1})
         
-        # Kolorowanie wierszy w zależności od sygnału
-        def color_action(val):
-            if val == "LONG":
-                return "background-color: #B2FFB2"  # Jasny zielony
-            elif val == "SHORT":
-                return "background-color: #FFB2B2"  # Jasny czerwony
-            else:
-                return "background-color: #E0E0E0"  # Jasny szary
+        # Wyświetl tabele bez stylowania (to eliminuje problemy z typami)
+        st.dataframe(signal_df, use_container_width=True)
         
-        st.dataframe(signal_df.style.applymap(color_action, subset=["Action"]), use_container_width=True)
+        # Dodaj prostą wizualizację sygnałów w formie tekstu
+        st.subheader("Wizualizacja sygnałów")
+        for _, row in signal_df.iterrows():
+            if row["Action"] == "LONG":
+                st.markdown(f"**{row['Field']} - {row['Commodity']}:** 🟢 LONG (Pewność: {row['Confidence']:.2f})")
+            elif row["Action"] == "SHORT":
+                st.markdown(f"**{row['Field']} - {row['Commodity']}:** 🔴 SHORT (Pewność: {row['Confidence']:.2f})")
+            else:
+                st.markdown(f"**{row['Field']} - {row['Commodity']}:** ⚪ NEUTRAL (Pewność: {row['Confidence']:.2f})")
         
         # Stwórz wykres z sygnałami rynkowymi
         fig = px.bar(
@@ -346,7 +348,7 @@ with tab2:
     st.header(f"Szczegóły pola: {selected_field}")
     st.markdown("""
     Szczegółowa analiza wybranego pola z wykresami NDVI, prognoz plonów i sygnałów rynkowych.
-    Wykresy są generowane automatycznie po każdej aktualizacji danych satelitarnych.
+    Wykresy są generowane po kliknięciu przycisku 'Aktualizuj prognozy i wykresy'.
     """)
     
     # Załaduj i wyświetl szczegółowe wykresy dla wybranego pola
@@ -354,8 +356,7 @@ with tab2:
     
     if not charts_loaded:
         st.info("""
-        Aby wygenerować wykresy, kliknij przycisk 'Aktualizuj teraz' w panelu bocznym.
-        Jeśli monitowanie jest włączone, wykresy zostaną wygenerowane automatycznie przy następnej aktualizacji.
+        Aby wygenerować wykresy, kliknij przycisk 'Aktualizuj prognozy i wykresy' w panelu bocznym.
         """)
 
 with tab3:
