@@ -15,11 +15,9 @@ import os
 import time
 from threading import Thread
 
-from utils.satellite_monitor import (
-    get_satellite_monitor, 
-    start_monitoring, 
-    stop_monitoring, 
-    check_for_updates_now,
+from utils.predictions import (
+    get_prediction_manager,
+    update_all_predictions,
     generate_charts_for_all_fields
 )
 
@@ -34,10 +32,6 @@ st.set_page_config(
 )
 
 # Inicjalizacja stanu sesji
-if "monitoring_status" not in st.session_state:
-    st.session_state.monitoring_status = False
-if "charts_loaded" not in st.session_state:
-    st.session_state.charts_loaded = False
 if "last_update_time" not in st.session_state:
     st.session_state.last_update_time = None
 
@@ -52,33 +46,26 @@ def load_data_from_file(file_path):
 
 # Funkcja do pobierania dostępnych pól
 def get_available_fields():
-    # Pobierz instancję monitora satelitarnego
-    satellite_monitor = get_satellite_monitor()
+    # Pobierz instancję managera prognoz
+    prediction_manager = get_prediction_manager()
     # Pobierz dostępne pola
-    return satellite_monitor.get_available_fields()
-
-# Funkcja do aktualizacji statusu monitorowania
-def update_monitoring_status():
-    st.session_state.monitoring_status = not st.session_state.monitoring_status
-    if st.session_state.monitoring_status:
-        # Rozpocznij monitorowanie
-        interval_hours = st.session_state.get("monitoring_interval", 24)
-        start_monitoring(interval_hours=interval_hours)
-        st.session_state.last_update_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        # Zatrzymaj monitorowanie
-        stop_monitoring()
+    return prediction_manager.get_available_fields()
 
 # Funkcja do wykonania ręcznej aktualizacji
 def manual_update():
-    with st.spinner("Sprawdzanie aktualizacji danych satelitarnych..."):
-        check_for_updates_now()
+    with st.spinner("Aktualizacja prognoz i generowanie wykresów..."):
+        # Aktualizuj prognozy dla wszystkich pól
+        updated_count = update_all_predictions()
         st.session_state.last_update_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Odśwież wykresy
+        
+        # Wygeneruj wykresy dla wszystkich pól
         generate_charts_for_all_fields()
-        st.session_state.charts_loaded = False  # Wymuś ponowne załadowanie wykresów
-        time.sleep(1)  # Krótkie opóźnienie, żeby wykresy zdążyły się wygenerować
-        st.experimental_rerun()  # Odśwież stronę
+        
+        # Krótkie opóźnienie, żeby wykresy zdążyły się wygenerować
+        time.sleep(1)
+        
+        # Odśwież stronę
+        st.rerun()
 
 # Funkcja do ładowania i wyświetlania wykresów
 def load_and_display_charts(field_name):
@@ -323,38 +310,11 @@ satelitarnych, generuje prognozy plonów, sygnały rynkowe i analizę ukrytych z
 """)
 
 # Panel sterowania w sidebarze
-st.sidebar.header("Ustawienia monitorowania")
+st.sidebar.header("Aktualizacja prognoz")
 
-# Wybór częstotliwości sprawdzania
-monitoring_interval = st.sidebar.slider(
-    "Częstotliwość sprawdzania (godziny)", 
-    min_value=1, 
-    max_value=72, 
-    value=24, 
-    step=1
-)
-st.session_state.monitoring_interval = monitoring_interval
-
-# Przyciski kontrolne
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    # Przycisk do włączania/wyłączania monitorowania
-    if st.session_state.monitoring_status:
-        if st.button("🛑 Zatrzymaj monitorowanie"):
-            update_monitoring_status()
-    else:
-        if st.button("🟢 Rozpocznij monitorowanie"):
-            update_monitoring_status()
-
-with col2:
-    # Przycisk do ręcznej aktualizacji
-    if st.button("🔄 Aktualizuj teraz"):
-        manual_update()
-
-# Wyświetl status monitorowania
-status_color = "green" if st.session_state.monitoring_status else "red"
-status_text = "Aktywne" if st.session_state.monitoring_status else "Nieaktywne"
-st.sidebar.markdown(f"**Status monitorowania:** <span style='color:{status_color}'>{status_text}</span>", unsafe_allow_html=True)
+# Przycisk do ręcznej aktualizacji
+if st.sidebar.button("🔄 Aktualizuj prognozy i wykresy", type="primary"):
+    manual_update()
 
 if st.session_state.last_update_time:
     st.sidebar.markdown(f"**Ostatnia aktualizacja:** {st.session_state.last_update_time}")

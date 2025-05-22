@@ -18,7 +18,12 @@ import seaborn as sns
 from scipy import stats
 import joblib
 
-from utils.data_access import SentinelHubDataAccess, PlanetDataAccess
+from utils.data_access import validate_credentials
+from config import (
+    SENTINEL_HUB_CLIENT_ID,
+    SENTINEL_HUB_CLIENT_SECRET,
+    PLANET_API_KEY
+)
 from models.yield_forecast import YieldForecastModel
 from models.market_signals import MarketSignalModel
 
@@ -33,8 +38,9 @@ class SatelliteMonitor:
     
     def __init__(self):
         """Initialize the satellite monitor."""
-        self.sentinel_access = SentinelHubDataAccess()
-        self.planet_access = PlanetDataAccess()
+        # Sprawdzanie poświadczeń zamiast inicjalizacji klas
+        self.sentinel_credentials_valid = validate_credentials("sentinel_hub")
+        self.planet_credentials_valid = validate_credentials("planet")
         self.yield_model = YieldForecastModel()
         self.market_model = MarketSignalModel()
         
