@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 import json
 from scipy.optimize import minimize
-from sklearn.metrics import sharpe_ratio
+# Note: sharpe_ratio is not available in sklearn.metrics, we'll calculate it manually
 import warnings
 warnings.filterwarnings('ignore')
 
