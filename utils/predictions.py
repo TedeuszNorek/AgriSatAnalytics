@@ -235,44 +235,12 @@ class PredictionManager:
             # Dla głównej uprawy i kilku innych głównych towarów
             commodity_symbols = [primary_symbol, 'ZW=F', 'ZC=F', 'ZS=F']
             
-            # Generuj sygnały rynkowe - używamy prostych generowanych sygnałów dla demonstracji
-            market_signals = {}
-            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            # Ta funkcja powinna używać rzeczywistych danych rynkowych
+            # Nie generujemy sztucznych sygnałów
+            logger.info(f"Sygnały rynkowe dla pola {field_name} wymagają analizy rzeczywistych danych cenowych.")
+            logger.info("Użyj strony 'Market Signals' aby przeprowadzić pełną analizę z prawdziwymi danymi.")
             
-            # Unikalne, deterministyczne losowe liczby dla każdego pola
-            np.random.seed(hash(field_name) % 2**32)
-            
-            for symbol in commodity_symbols:
-                # Generuj losowe sygnały dla demonstracji
-                random_val = np.random.uniform(-1, 1)
-                
-                if random_val > 0.3:  # Pozytywny sygnał
-                    action = "LONG"
-                    confidence = 0.5 + np.random.uniform(0, 0.3)
-                    reason = "Analiza wskazuje na potencjalny wzrost cen w najbliższym okresie."
-                elif random_val < -0.3:  # Negatywny sygnał
-                    action = "SHORT"
-                    confidence = 0.5 + np.random.uniform(0, 0.3)
-                    reason = "Analiza wskazuje na potencjalny spadek cen w najbliższym okresie."
-                else:  # Neutralny sygnał
-                    action = "NEUTRAL"
-                    confidence = 0.5 + np.random.uniform(0, 0.2)
-                    reason = "Brak wyraźnych sygnałów kierunkowych dla tego towaru."
-                
-                # Utwórz sygnał
-                signal = {
-                    "date": today,
-                    "action": action,
-                    "confidence": round(min(0.9, confidence), 2),  # Ogranicz do 0.9
-                    "reason": reason
-                }
-                
-                # Dodaj do sygnałów
-                if symbol not in market_signals:
-                    market_signals[symbol] = []
-                market_signals[symbol].append(signal)
-            
-            return {"signals": market_signals}
+            return None
         
         except Exception as e:
             logger.error(f"Błąd generowania przykładowych sygnałów rynkowych dla pola {field_name}: {str(e)}")

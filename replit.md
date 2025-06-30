@@ -95,6 +95,7 @@ Agro Insight is a comprehensive satellite data analytics platform designed for a
 
 ## Changelog
 
+- June 30, 2025. Fixed market data integrity - removed all fake/mock data and implemented real Yahoo Finance data fetching
 - June 29, 2025. Initial setup
 
 ## User Preferences
