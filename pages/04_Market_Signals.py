@@ -231,19 +231,26 @@ if selected_field:
                     logger.info(f"Rozpoczynam analizę dla towarów: {commodity_symbols}, okres: {period}")
                     st.info(f"Rozpoczynam analizę dla {len(commodity_symbols)} towarów rolnych. Pobieranie danych może potrwać chwilę...")
                     
-                    # Próba pobrania danych cenowych z rzeczywistych źródeł
+                    # Pobieranie rzeczywistych danych cenowych z Yahoo Finance
                     try:
+                        st.info("Pobieranie rzeczywistych danych cenowych z Yahoo Finance...")
                         # Fetch futures prices
                         price_data = asyncio.new_event_loop().run_until_complete(
                             market_model.fetch_futures_prices(commodity_symbols, period)
                         )
-                        logger.info(f"Pobrano dane cenowe: {price_data.shape if hasattr(price_data, 'shape') else 'N/A'}")
+                        
+                        if price_data.empty:
+                            st.error("Nie udało się pobrać żadnych danych cenowych z Yahoo Finance.")
+                            st.info("Sprawdź połączenie internetowe lub spróbuj ponownie za chwilę.")
+                            return
+                        
+                        logger.info(f"Pobrano rzeczywiste dane cenowe: {price_data.shape[0]} dni, {price_data.shape[1]} towarów")
+                        st.success(f"Pobrano dane cenowe dla {price_data.shape[1]} towarów ({price_data.shape[0]} dni)")
+                        
                     except Exception as e:
                         logger.error(f"Błąd podczas pobierania danych cenowych: {str(e)}")
-                        st.error(f"Nie udało się pobrać danych cenowych: {str(e)}")
-                        st.info("Aby kontynuować analizę potrzebne są rzeczywiste dane cenowe. Spróbuj zmienić okres analizy lub sprawdź połączenie internetowe.")
-                        
-                        # Zakończ analizę, jeśli nie udało się pobrać danych
+                        st.error(f"Nie udało się pobrać rzeczywistych danych cenowych: {str(e)}")
+                        st.info("Ta aplikacja wymaga rzeczywistych danych rynkowych. Sprawdź połączenie internetowe i spróbuj ponownie.")
                         return
                     
                     # Jeśli mamy dane cenowe, kontynuuj analizę
@@ -276,14 +283,8 @@ if selected_field:
                                 )
                             except Exception as e:
                                 st.error(f"Błąd podczas analizy korelacji: {str(e)}")
-                                # Stwórz przykładowe dane korelacji
-                                correlation_results = {}
-                                for symbol in commodity_symbols:
-                                    correlation_results[symbol] = {
-                                        'max_correlation': 0.65 + np.random.normal(0, 0.1),
-                                        'max_lag': np.random.randint(5, 25),
-                                        'correlation_by_lag': {i: 0.3 + 0.1*np.sin(i/5) + np.random.normal(0, 0.05) for i in range(0, 30)}
-                                    }
+                                st.info("Nie można przeprowadzić analizy korelacji. Sprawdź dane NDVI i spróbuj ponownie.")
+                                return
                             
                             try:
                                 # Test Granger causality
@@ -294,17 +295,8 @@ if selected_field:
                                 )
                             except Exception as e:
                                 st.error(f"Błąd podczas analizy przyczynowości Grangera: {str(e)}")
-                                # Stwórz przykładowe wyniki testu Grangera
-                                granger_results = {}
-                                for symbol in commodity_symbols:
-                                    granger_results[symbol] = {
-                                        'min_pvalue': 0.03 + np.random.normal(0, 0.01),
-                                        'optimal_lag': np.random.randint(1, 5),
-                                        'causality': np.random.random() > 0.5,
-                                        'results_by_lag': {i: {'pvalue': 0.05 + np.random.normal(0, 0.02), 
-                                                               'fvalue': 4 + np.random.normal(0, 1)} 
-                                                          for i in range(1, 6)}
-                                    }
+                                st.info("Nie można przeprowadzić testu przyczynowości Grangera. Sprawdź dane i spróbuj ponownie.")
+                                return
                             
                             try:
                                 # Generate market signals
@@ -315,19 +307,8 @@ if selected_field:
                                 )
                             except Exception as e:
                                 st.error(f"Błąd podczas generowania sygnałów rynkowych: {str(e)}")
-                                # Stwórz przykładowe sygnały rynkowe
-                                signals = []
-                                for symbol in commodity_symbols:
-                                    action = "LONG" if np.random.random() > 0.5 else "SHORT"
-                                    confidence = 0.65 + np.random.normal(0, 0.1)
-                                    signal = {
-                                        'date': datetime.now().strftime('%Y-%m-%d'),
-                                        'commodity': symbol,
-                                        'action': action,
-                                        'confidence': confidence,
-                                        'reason': f"Anomalia NDVI sugeruje {action.lower()} dla {symbol} z pewnością {confidence:.2f}"
-                                    }
-                                    signals.append(signal)
+                                st.info("Nie można wygenerować sygnałów rynkowych. Sprawdź dane wejściowe i spróbuj ponownie.")
+                                return
                             
                             try:
                                 # Save results

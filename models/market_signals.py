@@ -44,22 +44,52 @@ class MarketSignalModel:
             DataFrame with futures prices
         """
         try:
-            # Fetch data using yfinance
-            data = yf.download(symbols, period=period, interval="1d", group_by="ticker")
+            logger.info(f"Fetching real market data for symbols: {symbols}")
+            
+            # Fetch data using yfinance with proper error handling
+            data = yf.download(symbols, period=period, interval="1d", group_by="ticker", progress=False)
+            
+            if data.empty:
+                logger.error("No data received from Yahoo Finance")
+                raise Exception("Failed to fetch any price data from Yahoo Finance")
             
             # Restructure the DataFrame
             result = pd.DataFrame()
             
-            for symbol in symbols:
-                if symbol in data.columns:
-                    # Get the 'Close' price for this symbol
-                    symbol_data = data[symbol]['Close'].rename(symbol)
-                    
-                    # Add to the result DataFrame
-                    if result.empty:
-                        result = pd.DataFrame(symbol_data)
-                    else:
-                        result[symbol] = symbol_data
+            if len(symbols) == 1:
+                # Single symbol case
+                if 'Close' in data.columns:
+                    result[symbols[0]] = data['Close']
+                else:
+                    logger.error(f"No Close price data for {symbols[0]}")
+                    raise Exception(f"No Close price data available for {symbols[0]}")
+            else:
+                # Multiple symbols case
+                for symbol in symbols:
+                    try:
+                        if symbol in data.columns.get_level_values(0):
+                            # Get the 'Close' price for this symbol
+                            symbol_data = data[symbol]['Close']
+                            result[symbol] = symbol_data
+                            logger.info(f"Successfully fetched data for {symbol}: {len(symbol_data)} records")
+                        else:
+                            logger.warning(f"Symbol {symbol} not found in downloaded data")
+                    except Exception as e:
+                        logger.error(f"Error processing symbol {symbol}: {e}")
+                        continue
+            
+            if result.empty:
+                logger.error("No valid price data could be extracted")
+                raise Exception("Failed to extract any valid price data")
+            
+            # Remove any rows with all NaN values
+            result = result.dropna(how='all')
+            
+            if result.empty:
+                logger.error("All price data contains NaN values")
+                raise Exception("All fetched price data is invalid (NaN)")
+            
+            logger.info(f"Successfully fetched price data: {result.shape[0]} days, {result.shape[1]} symbols")
             
             # Cache the data
             self.price_data = result
@@ -67,8 +97,9 @@ class MarketSignalModel:
             return result
             
         except Exception as e:
-            logger.error(f"Error fetching futures prices: {e}")
-            return pd.DataFrame()
+            logger.error(f"Critical error fetching futures prices: {e}")
+            # Don't return empty DataFrame - let the caller handle the error
+            raise Exception(f"Failed to fetch real market data: {e}")
     
     def calculate_price_returns(
         self, 
