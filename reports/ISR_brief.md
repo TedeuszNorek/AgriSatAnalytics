@@ -2,6 +2,13 @@
 
 Visual situational summary generated 2025‑10‑17 using Sentinel‑2 (true colour & NDVI) and Sentinel‑1 (VV amplitude/z‑score). All imagery pulled via Sentinel Hub (Client Credentials – wprowadź własne ID/Secret podczas uruchamiania).
 
+### Dlaczego te lokalizacje?
+- **Natanz (Iran)** – serce programu wzbogacania; wzmożona aktywność logistyczna lub nowe zabudowania to natychmiastowy sygnał strategiczny.
+- **Tartus (Syria)** – główny port wojskowy Federacji Rosyjskiej na Morzu Śródziemnym; monitorujemy rotacje jednostek i zabezpieczenie dostaw.
+- **Kharg Island (Iran)** – największy terminal eksportowy ropy; zmiany w SAR wskazują na intensywność załadunków lub sabotaż.
+
+Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Iranu, rosyjska projekcja siły i krwioobieg ropy. Jeden zestaw pipeline’u pokrywa więc kluczowe węzły logistyczno‑wojskowe Bliskiego Wschodu.
+
 ---
 
 ## 1. Natanz Nuclear Complex (Iran)
@@ -59,6 +66,15 @@ Visual situational summary generated 2025‑10‑17 using Sentinel‑2 (true col
 - Sentinel‑1 (18/12/06 Oct 2025): z‑score < 2σ; ΔdB ~ ±2 dB. Brak świeżych sygnałów wzmożonego tankowania / uszkodzeń.
 
 **Interpretacja**: Ruch terminalu w normie. Zwracać uwagę na zmiany > +3 dB wzdłuż nabrzeży – sugerują cumowanie VLCC.
+
+---
+
+## 4. Pareto – co monitorować w pierwszej kolejności
+- **Tartus SAR** – jedyny punkt o stałej obecności sprzętu ciężkiego; wzrost z‑score przy nabrzeżach = natychmiastowy alert.
+- **Natanz drogi dojazdowe** – NDVI+SAR każdorazowo po burzach piaskowych; anomalie mogą wskazywać na wzmożony transport podziemny.
+- **Kharg ΔdB** – monitorować podczas skoków cen ropy: różnice > +3 dB świadczą o nagłych przeładunkach.
+
+Reszta AOI może być śledzona w interwale tygodniowym; te trzy wskaźniki decydują o 80 % potencjalnych „surge” w regionie.
 
 ---
 
