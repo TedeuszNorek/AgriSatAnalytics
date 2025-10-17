@@ -13,8 +13,6 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ## 1. Natanz Nuclear Complex (Iran)
 
-![Natanz true colour](./natanz/natanz_true_color_stretched.png)
-
 - **Context**: Iranian uranium enrichment site (33.72 N, 51.73 E); kluczowy ośrodek programu nuklearnego.
 - **Observation (true colour)**: 30‑dniowa kompozycja z najmniejszym zachmurzeniem (gamma 0.35) – widoczne drogi serwisowe, barykady ziemne, place składowe.
 - **Kluczowe elementy**: Strefa zabezpieczenia na wschód (świadczy o aktywności ochrony), pas logistyczny prowadzący do podziemi, brak świeżych wycinek roślinności.
@@ -36,8 +34,6 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ## 2. Tartus Naval Base (Syria)
 
-![Tartus true colour](./tartus/tartus_true_color_stretched.png)
-
 - **Widoczne struktury**: doki, falochrony i place ładunkowe; rozciągnięcie gamma uwypukla sylwetki jednostek i magazyny paliwowe.
 - **Infra**: aktywne światła portowe, ślady ruchu kołowego wzdłuż linii kolejowej.
 
@@ -56,8 +52,6 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 ---
 
 ## 3. Kharg Island Oil Terminal (Iran)
-
-![Kharg true colour](./kharg_island/kharg_island_true_color_stretched.png)
 
 - **True colour**: kompleks zbiorników, doki oraz rurociągi; rozciągnięcie jasności eksponuje potencjalne obszary napraw.
 - **Ślady aktywności**: świeże ślady na drogach technicznych, brak nietypowych zacienień konstrukcji.
