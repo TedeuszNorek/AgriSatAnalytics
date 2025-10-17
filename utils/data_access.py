@@ -26,6 +26,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from config import (
     SENTINEL_HUB_CLIENT_ID,
     SENTINEL_HUB_CLIENT_SECRET,
+    PLANET_API_KEY,
     CACHE_DIR,
     SATELLITE_DATA_DIR,
     SETTINGS
@@ -33,6 +34,16 @@ from config import (
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+def validate_credentials(service: str) -> bool:
+    """Simple credential presence check used by the monitoring module."""
+    service = (service or "").lower()
+    if service in {"sentinel", "sentinel_hub"}:
+        return bool(SENTINEL_HUB_CLIENT_ID and SENTINEL_HUB_CLIENT_SECRET)
+    if service == "planet":
+        return bool(PLANET_API_KEY)
+    return False
 
 def get_sentinel_hub_config() -> SHConfig:
     """Get Sentinel Hub configuration from environment variables."""

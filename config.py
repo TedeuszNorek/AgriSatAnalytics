@@ -3,6 +3,8 @@ Configuration file for Agro Insight - Satellite data analytics for agriculture.
 """
 import os
 import logging
+import tomllib
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional, Any, Union
 
@@ -45,8 +47,40 @@ for directory in [SATELLITE_DATA_DIR, PROCESSED_DATA_DIR, REPORTS_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 # Sentinel Hub configuration
-SENTINEL_HUB_CLIENT_ID = os.getenv("SENTINEL_HUB_CLIENT_ID")
-SENTINEL_HUB_CLIENT_SECRET = os.getenv("SENTINEL_HUB_CLIENT_SECRET")
+def _get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Fetch a secret from environment variables or Streamlit secrets."""
+    # Environment variables take precedence for easier CI and CLI usage
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # Fall back to Streamlit secrets when running the app
+    try:
+        import streamlit as st
+        secrets = getattr(st, "secrets", {})
+        if secrets and key in secrets:
+            return secrets[key]
+    except Exception:
+        # Streamlit is optional outside of the UI runtime
+        pass
+    
+    # Finally, fall back to a local secrets file if present
+    secrets_path = Path(BASE_DIR) / ".streamlit" / "secrets.toml"
+    if secrets_path.exists():
+        try:
+            with secrets_path.open("rb") as fh:
+                file_secrets = tomllib.load(fh)
+            if key in file_secrets:
+                return file_secrets[key]
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Could not read %s: %s", secrets_path, exc
+            )
+    
+    return default
+
+SENTINEL_HUB_CLIENT_ID = _get_secret("SENTINEL_HUB_CLIENT_ID")
+SENTINEL_HUB_CLIENT_SECRET = _get_secret("SENTINEL_HUB_CLIENT_SECRET")
 
 # Planet API configuration
 PLANET_API_KEY = os.getenv("PLANET_API_KEY")

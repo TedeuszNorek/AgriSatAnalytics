@@ -24,7 +24,7 @@ from config import (
     SENTINEL_HUB_CLIENT_SECRET,
     PLANET_API_KEY
 )
-from models.yield_forecast import YieldForecastModel
+from models.yield_forecast import YieldForecastModel, run_coroutine
 from models.market_signals import MarketSignalModel
 
 # Initialize logging
@@ -220,11 +220,14 @@ class SatelliteMonitor:
             
             # Calculate yield forecast
             ndvi_time_series = self.get_ndvi_time_series(field_name)
-            yield_forecast = self.predict_yield(field_name, ndvi_time_series)
+            yield_result = self.predict_yield(field_name, ndvi_time_series)
             
-            # Update yield forecast time series
-            if yield_forecast:
-                self.update_yield_forecast(field_name, img_date_str, yield_forecast)
+            if yield_result:
+                forecasts = yield_result.get("forecasts")
+                metadata = yield_result.get("metadata")
+                
+                if forecasts:
+                    self.update_yield_forecast(field_name, img_date_str, forecasts, metadata)
             
             # Generate market signals
             market_signals = self.generate_market_signals(field_name, ndvi_time_series)
@@ -320,88 +323,73 @@ class SatelliteMonitor:
         
         return {}
     
-    def predict_yield(self, field_name: str, ndvi_time_series: Dict[str, float]) -> Optional[Dict[str, float]]:
+    def predict_yield(self, field_name: str, ndvi_time_series: Dict[str, float]) -> Optional[Dict[str, Any]]:
         """
-        Predict yield based on NDVI time series.
+        Predict yield using the advanced forecasting pipeline.
         
-        Args:
-            field_name: Name of the field
-            ndvi_time_series: Dictionary mapping dates to NDVI values
-            
-        Returns:
-            Dictionary with yield predictions for different crops
+        Returns a dictionary with `forecasts` and optional `metadata`.
         """
         if not ndvi_time_series:
             logger.warning(f"No NDVI time series available for field {field_name}")
             return None
         
         try:
-            # Convert NDVI time series to dataframe
-            ndvi_df = pd.DataFrame(list(ndvi_time_series.items()), columns=['date', 'ndvi'])
-            ndvi_df['date'] = pd.to_datetime(ndvi_df['date'])
+            ndvi_df = pd.DataFrame(list(ndvi_time_series.items()), columns=["date", "ndvi"])
+            ndvi_df["date"] = pd.to_datetime(ndvi_df["date"])
+            ndvi_df = ndvi_df.sort_values("date")
             
-            # Get crop type from field info
             field_info = self.get_field_info(field_name)
-            crop_type = field_info.get('crop_type', 'unknown')
-            
-            # Prepare forecast dates (next 30, 60, 90 days)
-            last_date = ndvi_df['date'].max()
+            crop_type = field_info.get("crop_type", "Other")
+            last_date = ndvi_df["date"].max()
             forecast_dates = [
-                (last_date + timedelta(days=30)).strftime('%Y-%m-%d'),
-                (last_date + timedelta(days=60)).strftime('%Y-%m-%d'),
-                (last_date + timedelta(days=90)).strftime('%Y-%m-%d')
+                (last_date + timedelta(days=30)).strftime("%Y-%m-%d"),
+                (last_date + timedelta(days=60)).strftime("%Y-%m-%d"),
+                (last_date + timedelta(days=90)).strftime("%Y-%m-%d"),
             ]
             
-            # Simplified yield prediction based on NDVI trend
-            ndvi_values = ndvi_df['ndvi'].values
-            if len(ndvi_values) < 2:
-                return None
+            weather_data: Dict[str, Dict[str, float]] = {}
+            lat = field_info.get("center_lat")
+            lon = field_info.get("center_lon")
+            if lat is not None and lon is not None:
+                start_date = ndvi_df["date"].min().strftime("%Y-%m-%d")
+                end_date = last_date.strftime("%Y-%m-%d")
+                weather_data = run_coroutine(
+                    self.yield_model.fetch_weather_data(lat, lon, start_date, end_date)
+                )
             
-            # Calculate basic statistics
-            ndvi_mean = np.mean(ndvi_values)
-            ndvi_trend = (ndvi_values[-1] - ndvi_values[0]) / len(ndvi_values)
+            historical_yields = field_info.get("historical_yields")
+            result = self.yield_model.forecast_from_series(
+                ndvi_time_series=ndvi_time_series,
+                crop_type=crop_type,
+                forecast_dates=forecast_dates,
+                weather_data=weather_data,
+                historical_yields=historical_yields,
+            )
             
-            # Base yields for different crops (tons per hectare)
-            base_yields = {
-                'Wheat': 3.5,
-                'Corn': 9.0,
-                'Soybean': 3.0,
-                'Barley': 3.2,
-                'Oats': 2.5,
-                'Rice': 4.5
+            if result:
+                return result
+            
+            logger.info("Falling back to heuristic yield estimate for %s", field_name)
+            fallback_predictions, intervals = self.yield_model._fallback_forecast(forecast_dates, crop_type)
+            return {
+                "forecasts": {crop_type: {d: round(v, 2) for d, v in fallback_predictions.items()}},
+                "metadata": {
+                    "model_backend": "phenology_fallback",
+                    "intervals": {d: {"lower": round(low, 2), "upper": round(high, 2)} for d, (low, high) in intervals.items()},
+                },
             }
-            
-            # Default to wheat if crop type is unknown
-            if crop_type.lower() not in [k.lower() for k in base_yields.keys()]:
-                crop_type = 'Wheat'
-            
-            # Find the matching crop type case-insensitively
-            crop_key = next((k for k in base_yields.keys() if k.lower() == crop_type.lower()), 'Wheat')
-            base_yield = base_yields[crop_key]
-            
-            # Adjust yield based on NDVI
-            ndvi_factor = 1.0 + ((ndvi_mean - 0.5) * 0.5)  # NDVI effect on yield
-            trend_factor = 1.0 + (ndvi_trend * 20)  # Trend effect on yield
-            
-            # Calculate yield predictions for each forecast date
-            predictions = {}
-            for crop, base in base_yields.items():
-                crop_predictions = {}
-                for i, date in enumerate(forecast_dates):
-                    # Different prediction horizons have different uncertainties
-                    horizon_factor = 1.0 - (i * 0.05)  # Reduce confidence for farther predictions
-                    yield_prediction = base * ndvi_factor * trend_factor * horizon_factor
-                    crop_predictions[date] = round(yield_prediction, 2)
-                
-                predictions[crop] = crop_predictions
-            
-            return predictions
         
-        except Exception as e:
-            logger.error(f"Error predicting yield for field {field_name}: {str(e)}")
+        except Exception as exc:
+            logger.error("Error predicting yield for field %s: %s", field_name, exc)
             return None
     
-    def update_yield_forecast(self, field_name: str, date_str: str, yield_forecast: Dict[str, Any]):
+    def update_yield_forecast(
+        self,
+        field_name: str,
+        date_str: str,
+        yield_forecast: Dict[str, Any],
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         """
         Update the yield forecast time series for a field.
         
@@ -414,7 +402,8 @@ class SatelliteMonitor:
         forecast_file = Path(f"data/{field_name}_yield_forecast.json")
         forecast_data = {
             "date_updated": date_str,
-            "forecasts": {}
+            "forecasts": {},
+            "metadata": {}
         }
         
         if forecast_file.exists():
@@ -424,6 +413,8 @@ class SatelliteMonitor:
                     # Keep existing structure but update forecasts
                     if "forecasts" in existing_data:
                         forecast_data["forecasts"] = existing_data["forecasts"]
+                    if "metadata" in existing_data:
+                        forecast_data["metadata"] = existing_data["metadata"]
             except Exception as e:
                 logger.error(f"Error loading yield forecast for {field_name}: {str(e)}")
         
@@ -435,6 +426,10 @@ class SatelliteMonitor:
             # Add the new predictions
             for pred_date, pred_value in predictions.items():
                 forecast_data["forecasts"][crop][pred_date] = pred_value
+        
+        # Merge metadata
+        if metadata:
+            forecast_data["metadata"] = metadata
         
         # Save the updated forecast
         try:
