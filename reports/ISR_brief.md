@@ -15,12 +15,14 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ![Natanz true colour](./natanz/natanz_true_color_stretched.png)
 
-- **Context**: Iranian uranium enrichment site; key indicator of underground operations & logistics.
-- **Observation** (S2 true colour, 30‑day least‑cloud composite, gamma stretch): Sparse vegetation, clear infrastructure outlines (eastern support buildings, security berms).
+- **Context**: Iranian uranium enrichment site (33.72 N, 51.73 E); kluczowy ośrodek programu nuklearnego.
+- **Observation (true colour)**: 30‑dniowa kompozycja z najmniejszym zachmurzeniem (gamma 0.35) – widoczne drogi serwisowe, barykady ziemne, place składowe.
+- **Kluczowe elementy**: Strefa zabezpieczenia na wschód (świadczy o aktywności ochrony), pas logistyczny prowadzący do podziemi, brak świeżych wycinek roślinności.
 
 ![Natanz NDVI](./natanz/natanz_ndvi_map.png)
 
-- **NDVI median (2–17 Oct 2025)**: mean ≈ 0.07, max ≈ 0.84. Vegetation confined to trace irrigation channels; no new green belts.
+- **NDVI median (2–17 Oct 2025)**: mean ≈ 0.07, max ≈ 0.84 – wegetacja ograniczona do starych kanałów nawodnień; brak nowych stref zielonych.
+- **Wniosek NDVI**: brak przygotowań do nowych maskowań roślinnych; widoczne jedynie istniejące nasadzenia ochronne.
 
 ![Natanz SAR z‑score](./natanz/natanz_sar_activity.png)  
 ![Natanz SAR ΔdB](./natanz/natanz_sar_diff.png)
@@ -28,6 +30,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 - **Sentinel‑1 VV (17/11/05 Oct 2025)**: z‑score map shows no pixels above ±2σ → brak świeżych radarowych anomalii (konwoje / nowe dachy). ΔdB w zakresie ±3 dB – stabilna scena.
 
 **Interpretacja**: Operacje ciągłe, brak sygnałów nagłej rozbudowy. Monitorować co 6 dni dla ruchów na drogach dojazdowych.
+**Warto obserwować**: kontrast między wschodnią strefą ochrony a południowym wjazdem – to tam najpierw pojawią się zwiększone transporty.
 
 ---
 
@@ -35,11 +38,12 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ![Tartus true colour](./tartus/tartus_true_color_stretched.png)
 
-- Wyraźne nabrzeża, doki, magazyny. Wysoki kontrast dzięki zastosowaniu gamma 0.4.
+- **Widoczne struktury**: doki, falochrony i place ładunkowe; rozciągnięcie gamma uwypukla sylwetki jednostek i magazyny paliwowe.
+- **Infra**: aktywne światła portowe, ślady ruchu kołowego wzdłuż linii kolejowej.
 
 ![Tartus NDVI](./tartus/tartus_ndvi_map.png)
 
-- NDVI mean ≈ 0.24 – utrzymane zielone pasy wewnątrz bazy i na peryferiach.
+- **NDVI mean ≈ 0.24** – utrzymane pasy zieleni (kwatery mieszkalne i strefy techniczne); stabilna eksploatacja.
 
 ![Tartus SAR z‑score](./tartus/tartus_sar_activity.png)  
 ![Tartus SAR ΔdB](./tartus/tartus_sar_diff.png)
@@ -47,6 +51,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 - Sentinel‑1 (18/12/06 Oct 2025) – brak pików > 2σ; ΔdB < ±3 dB. Żadnych masywnych zmian w odbiciu radarowym (np. nowa jednostka wysokotonowa) w badanym oknie.
 
 **Interpretacja**: Logistyka portowa w normalnych ramach; brak sygnału mobilizacji. Podwyższona baza wsparcia – trzymać alert SAR, szczególnie gdy zacznie się kumulacja tankowców.
+**Warto obserwować**: zachodni basen portowy – różnice ΔdB powyżej 3 dB oznaczają nowy tonaż przy nabrzeżach.
 
 ---
 
@@ -54,11 +59,12 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ![Kharg true colour](./kharg_island/kharg_island_true_color.png)
 
-- Terminal ropy i petrochemia, wysokie kontrasty budynków / zbiorników.
+- **True colour**: kompleks zbiorników, doki oraz rurociągi; rozciągnięcie jasności eksponuje potencjalne obszary napraw.
+- **Ślady aktywności**: świeże ślady na drogach technicznych, brak nietypowych zacienień konstrukcji.
 
 ![Kharg NDVI](./kharg_island/kharg_island_ndvi_map.png)
 
-- NDVI mean ≈ −0.20 (praktycznie brak roślinności – typowe dla infrastruktury).
+- **NDVI mean ≈ −0.20** – zdominowane przez infrastrukturę, pojedyncze punkty zieleni przy bazach załogowych.
 
 ![Kharg SAR z‑score](./kharg_island/kharg_island_sar_activity.png)  
 ![Kharg SAR ΔdB](./kharg_island/kharg_island_sar_diff.png)
@@ -66,6 +72,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 - Sentinel‑1 (18/12/06 Oct 2025): z‑score < 2σ; ΔdB ~ ±2 dB. Brak świeżych sygnałów wzmożonego tankowania / uszkodzeń.
 
 **Interpretacja**: Ruch terminalu w normie. Zwracać uwagę na zmiany > +3 dB wzdłuż nabrzeży – sugerują cumowanie VLCC.
+**Warto obserwować**: północne nabrzeże – tam najszybciej pojawiają się odchylenia z-score przy wzmożonych przeładunkach.
 
 ---
 
