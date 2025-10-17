@@ -1,0 +1,161 @@
+<h1 id="agrosat-isr-snapshot-natanz-tartus-kharg-island">AGROSAT – ISR
+Snapshot (Natanz, Tartus, Kharg Island)</h1>
+<p>Visual situational summary generated 2025‑10‑17 using Sentinel‑2
+(true colour &amp; NDVI) and Sentinel‑1 (VV amplitude/z‑score). All
+imagery pulled via Sentinel Hub (Client Credentials – wprowadź własne
+ID/Secret podczas uruchamiania).</p>
+<h3 id="dlaczego-te-lokalizacje">Dlaczego te lokalizacje?</h3>
+<ul>
+<li><strong>Natanz (Iran)</strong> – serce programu wzbogacania;
+wzmożona aktywność logistyczna lub nowe zabudowania to natychmiastowy
+sygnał strategiczny.</li>
+<li><strong>Tartus (Syria)</strong> – główny port wojskowy Federacji
+Rosyjskiej na Morzu Śródziemnym; monitorujemy rotacje jednostek i
+zabezpieczenie dostaw.</li>
+<li><strong>Kharg Island (Iran)</strong> – największy terminal
+eksportowy ropy; zmiany w SAR wskazują na intensywność załadunków lub
+sabotaż.</li>
+</ul>
+<p>Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne
+zaplecze Iranu, rosyjska projekcja siły i krwioobieg ropy. Jeden zestaw
+pipeline’u pokrywa więc kluczowe węzły logistyczno‑wojskowe Bliskiego
+Wschodu.</p>
+<hr />
+<h2 id="natanz-nuclear-complex-iran">1. Natanz Nuclear Complex
+(Iran)</h2>
+<ul>
+<li><strong>Context</strong>: Iranian uranium enrichment site (33.72 N,
+51.73 E); kluczowy ośrodek programu nuklearnego.</li>
+<li><strong>Observation (true colour)</strong>: 30‑dniowa kompozycja z
+najmniejszym zachmurzeniem (gamma 0.35) – widoczne drogi serwisowe,
+barykady ziemne, place składowe.</li>
+<li><strong>Kluczowe elementy</strong>: Strefa zabezpieczenia na wschód
+(świadczy o aktywności ochrony), pas logistyczny prowadzący do podziemi,
+brak świeżych wycinek roślinności.</li>
+</ul>
+<figure>
+<img src="./natanz/natanz_ndvi_map.png" alt="Natanz NDVI" />
+<figcaption aria-hidden="true">Natanz NDVI</figcaption>
+</figure>
+<ul>
+<li><strong>NDVI median (2–17 Oct 2025)</strong>: mean ≈ 0.07, max
+≈ 0.84 – wegetacja ograniczona do starych kanałów nawodnień; brak nowych
+stref zielonych.</li>
+<li><strong>Wniosek NDVI</strong>: brak przygotowań do nowych maskowań
+roślinnych; widoczne jedynie istniejące nasadzenia ochronne.</li>
+</ul>
+<p><img src="./natanz/natanz_sar_activity.png"
+alt="Natanz SAR z‑score" /><br />
+<img src="./natanz/natanz_sar_diff.png" alt="Natanz SAR ΔdB" /></p>
+<ul>
+<li><strong>Sentinel‑1 VV (17/11/05 Oct 2025)</strong>: z‑score map
+shows no pixels above ±2σ → brak świeżych radarowych anomalii (konwoje /
+nowe dachy). ΔdB w zakresie ±3 dB – stabilna scena.</li>
+</ul>
+<p><strong>Interpretacja</strong>: Operacje ciągłe, brak sygnałów nagłej
+rozbudowy. Monitorować co 6 dni dla ruchów na drogach dojazdowych.
+<strong>Warto obserwować</strong>: kontrast między wschodnią strefą
+ochrony a południowym wjazdem – to tam najpierw pojawią się zwiększone
+transporty.</p>
+<hr />
+<h2 id="tartus-naval-base-syria">2. Tartus Naval Base (Syria)</h2>
+<ul>
+<li><strong>Widoczne struktury</strong>: doki, falochrony i place
+ładunkowe; rozciągnięcie gamma uwypukla sylwetki jednostek i magazyny
+paliwowe.</li>
+<li><strong>Infra</strong>: aktywne światła portowe, ślady ruchu
+kołowego wzdłuż linii kolejowej.</li>
+</ul>
+<figure>
+<img src="./tartus/tartus_ndvi_map.png" alt="Tartus NDVI" />
+<figcaption aria-hidden="true">Tartus NDVI</figcaption>
+</figure>
+<ul>
+<li><strong>NDVI mean ≈ 0.24</strong> – utrzymane pasy zieleni (kwatery
+mieszkalne i strefy techniczne); stabilna eksploatacja.</li>
+</ul>
+<p><img src="./tartus/tartus_sar_activity.png"
+alt="Tartus SAR z‑score" /><br />
+<img src="./tartus/tartus_sar_diff.png" alt="Tartus SAR ΔdB" /></p>
+<ul>
+<li>Sentinel‑1 (18/12/06 Oct 2025) – brak pików &gt; 2σ; ΔdB &lt; ±3 dB.
+Żadnych masywnych zmian w odbiciu radarowym (np. nowa jednostka
+wysokotonowa) w badanym oknie.</li>
+</ul>
+<p><strong>Interpretacja</strong>: Logistyka portowa w normalnych
+ramach; brak sygnału mobilizacji. Podwyższona baza wsparcia – trzymać
+alert SAR, szczególnie gdy zacznie się kumulacja tankowców.
+<strong>Warto obserwować</strong>: zachodni basen portowy – różnice ΔdB
+powyżej 3 dB oznaczają nowy tonaż przy nabrzeżach.</p>
+<hr />
+<h2 id="kharg-island-oil-terminal-iran">3. Kharg Island Oil Terminal
+(Iran)</h2>
+<ul>
+<li><strong>True colour</strong>: kompleks zbiorników, doki oraz
+rurociągi; rozciągnięcie jasności eksponuje potencjalne obszary
+napraw.</li>
+<li><strong>Ślady aktywności</strong>: świeże ślady na drogach
+technicznych, brak nietypowych zacienień konstrukcji.</li>
+</ul>
+<figure>
+<img src="./kharg_island/kharg_island_ndvi_map.png" alt="Kharg NDVI" />
+<figcaption aria-hidden="true">Kharg NDVI</figcaption>
+</figure>
+<ul>
+<li><strong>NDVI mean ≈ −0.20</strong> – zdominowane przez
+infrastrukturę, pojedyncze punkty zieleni przy bazach załogowych.</li>
+</ul>
+<p><img src="./kharg_island/kharg_island_sar_activity.png"
+alt="Kharg SAR z‑score" /><br />
+<img src="./kharg_island/kharg_island_sar_diff.png"
+alt="Kharg SAR ΔdB" /></p>
+<ul>
+<li>Sentinel‑1 (18/12/06 Oct 2025): z‑score &lt; 2σ; ΔdB ~ ±2 dB. Brak
+świeżych sygnałów wzmożonego tankowania / uszkodzeń.</li>
+</ul>
+<p><strong>Interpretacja</strong>: Ruch terminalu w normie. Zwracać
+uwagę na zmiany &gt; +3 dB wzdłuż nabrzeży – sugerują cumowanie VLCC.
+<strong>Warto obserwować</strong>: północne nabrzeże – tam najszybciej
+pojawiają się odchylenia z-score przy wzmożonych przeładunkach.</p>
+<hr />
+<h2 id="pareto-co-monitorować-w-pierwszej-kolejności">4. Pareto – co
+monitorować w pierwszej kolejności</h2>
+<ul>
+<li><strong>Tartus SAR</strong> – jedyny punkt o stałej obecności
+sprzętu ciężkiego; wzrost z‑score przy nabrzeżach = natychmiastowy
+alert.</li>
+<li><strong>Natanz drogi dojazdowe</strong> – NDVI+SAR każdorazowo po
+burzach piaskowych; anomalie mogą wskazywać na wzmożony transport
+podziemny.</li>
+<li><strong>Kharg ΔdB</strong> – monitorować podczas skoków cen ropy:
+różnice &gt; +3 dB świadczą o nagłych przeładunkach.</li>
+</ul>
+<p>Reszta AOI może być śledzona w interwale tygodniowym; te trzy
+wskaźniki decydują o 80 % potencjalnych „surge” w regionie.</p>
+<hr />
+<h2 id="jak-powtórzyć-analizę">Jak powtórzyć analizę</h2>
+<ol type="1">
+<li>Ustaw zmienne środowiskowe z własnym **SENTINELHUB_CLIENT_ID /
+_SECRET** (konto Sentinel Hub lub Copernicus Dataspace).</li>
+<li>Zainstaluj zależności:
+<code>python3 -m pip install --user sentinelhub matplotlib numpy pillow</code>.</li>
+<li>Uruchom skrypt generujący raport (np. przygotowany
+<code>generate_isr_report.py</code>) lub wstaw poniższy fragment w
+notatnik:</li>
+</ol>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> utils.scripts.generate_isr_report <span class="im">import</span> run_isr_pipeline  <span class="co"># przykładowy moduł</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>run_isr_pipeline(aoi<span class="op">=</span><span class="st">&#39;natanz&#39;</span>)</span></code></pre></div>
+<ul>
+<li><strong>NDVI</strong>: median composite (15‑dniowe okno, max 40 %
+chmur).</li>
+<li><strong>SAR</strong>: VV amplituda, baseline 12 dni, ΔdB + z-score;
+próg alarmu = |z| ≥ 2.</li>
+<li><strong>Colours</strong>: gamma 0.4 dla S2, wzmocnienie ×3 dla
+lepszej widoczności w pustynnych scenach.</li>
+</ul>
+<hr />
+<p><strong>Do prezentacji</strong>: wykorzystaj ten plik + osadzone PNG
+w Streamlit (<code>st.image(...)</code>, <code>st.json(...)</code>).
+Zestaw ready‑to‑brief: NDVI → kondycja terenu, SAR → anomalie, true
+colour → świadomość sytuacyjna.</p>
