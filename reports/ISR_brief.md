@@ -22,8 +22,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 - **NDVI median (2–17 Oct 2025)**: mean ≈ 0.07, max ≈ 0.84 – wegetacja ograniczona do starych kanałów nawodnień; brak nowych stref zielonych.
 - **Wniosek NDVI**: brak przygotowań do nowych maskowań roślinnych; widoczne jedynie istniejące nasadzenia ochronne.
 
-![Natanz SAR z‑score](https://raw.githubusercontent.com/TedeuszNorek/AgriSatAnalytics/main/reports/natanz/natanz_sar_activity.png)  
-![Natanz SAR ΔdB](https://raw.githubusercontent.com/TedeuszNorek/AgriSatAnalytics/main/reports/natanz/natanz_sar_diff.png)
+- *(mapy SAR dla Natanzu znajdują się w katalogu `reports/natanz/`; usunięte z raportu z powodu problemów z podglądem)*
 
 - **Sentinel‑1 VV (17/11/05 Oct 2025)**: z‑score map shows no pixels above ±2σ → brak świeżych radarowych anomalii (konwoje / nowe dachy). ΔdB w zakresie ±3 dB – stabilna scena.
 
@@ -41,8 +40,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 - **NDVI mean ≈ 0.24** – utrzymane pasy zieleni (kwatery mieszkalne i strefy techniczne); stabilna eksploatacja.
 
-![Tartus SAR z‑score](https://raw.githubusercontent.com/TedeuszNorek/AgriSatAnalytics/main/reports/tartus/tartus_sar_activity.png)  
-![Tartus SAR ΔdB](https://raw.githubusercontent.com/TedeuszNorek/AgriSatAnalytics/main/reports/tartus/tartus_sar_diff.png)
+- *(mapy SAR Tartusu są dostępne w `reports/tartus/`; pominięto je tutaj ze względu na problemy z podglądem)*
 
 - Sentinel‑1 (18/12/06 Oct 2025) – brak pików > 2σ; ΔdB < ±3 dB. Żadnych masywnych zmian w odbiciu radarowym (np. nowa jednostka wysokotonowa) w badanym oknie.
 
