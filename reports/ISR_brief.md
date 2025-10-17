@@ -57,7 +57,7 @@ Dobór tych trzech punktów daje „pareto” dla regionu: nuklearne zaplecze Ir
 
 ## 3. Kharg Island Oil Terminal (Iran)
 
-![Kharg true colour](./kharg_island/kharg_island_true_color.png)
+![Kharg true colour](./kharg_island/kharg_island_true_color_stretched.png)
 
 - **True colour**: kompleks zbiorników, doki oraz rurociągi; rozciągnięcie jasności eksponuje potencjalne obszary napraw.
 - **Ślady aktywności**: świeże ślady na drogach technicznych, brak nietypowych zacienień konstrukcji.
