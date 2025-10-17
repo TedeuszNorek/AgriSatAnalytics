@@ -1,6 +1,6 @@
 # AGROSAT – ISR Snapshot (Natanz, Tartus, Kharg Island)
 
-Visual situational summary generated 2025‑10‑17 using Sentinel‑2 (true colour & NDVI) and Sentinel‑1 (VV amplitude/z‑score). All imagery pulled via Sentinel Hub with client ID `eea91561-96c8-4e44-86fe-4c3bb9625f5b`.
+Visual situational summary generated 2025‑10‑17 using Sentinel‑2 (true colour & NDVI) and Sentinel‑1 (VV amplitude/z‑score). All imagery pulled via Sentinel Hub (Client Credentials – wprowadź własne ID/Secret podczas uruchamiania).
 
 ---
 
@@ -64,12 +64,13 @@ Visual situational summary generated 2025‑10‑17 using Sentinel‑2 (true col
 
 ## Jak powtórzyć analizę
 
-```bash
-# w katalogu repo
-python3 -m pip install --user sentinelhub matplotlib numpy
-export SENTINELHUB_CLIENT_ID=eea91561-96c8-4e44-86fe-4c3bb9625f5b
-export SENTINELHUB_CLIENT_SECRET=GjpRNnkfytLtF7xpgd0BqNbchYM3S01r
-python3 utils/scripts/generate_isr_report.py  # (skrypt wg potrzeb)
+1. Ustaw zmienne środowiskowe z własnym **SENTINELHUB_CLIENT_ID / _SECRET** (konto Sentinel Hub lub Copernicus Dataspace).
+2. Zainstaluj zależności: `python3 -m pip install --user sentinelhub matplotlib numpy pillow`.
+3. Uruchom skrypt generujący raport (np. przygotowany `generate_isr_report.py`) lub wstaw poniższy fragment w notatnik:
+
+```python
+from utils.scripts.generate_isr_report import run_isr_pipeline  # przykładowy moduł
+run_isr_pipeline(aoi='natanz')
 ```
 
 - **NDVI**: median composite (15‑dniowe okno, max 40 % chmur).
